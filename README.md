@@ -85,9 +85,9 @@ flowchart TB
 		viewer -->|"reads"| db
 	end
 
-	shortcut -->|"authenticated HTTPS event"| intake
-	queue --> delivery
-	delivery --> processing
+	shortcut -->|"authenticated HTTPS"| intake
+	queue -->|"VPN-protected delivery"| delivery
+	delivery -->|"LAN delivery"| processing
 ```
 
 ### Security properties
