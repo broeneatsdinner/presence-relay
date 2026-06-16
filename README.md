@@ -57,61 +57,37 @@ That progression—from secure event delivery toward contextual anticipation—i
 
 Presence Relay separates the public ingress surface from the trusted system that receives and uses the event.
 
-```text
-public side                              private side
-
-mobile device
-    |
-    | authenticated HTTPS
-    v
-public relay
-    |
-    | private-side delivery path
-    v
-trusted LAN target
-    |
-    +--> event processing
-    +--> place-state transition
-    +--> enrichment
-    +--> SQLite persistence
-    +--> local viewer
-```
-
 ```mermaid
-flowchart LR
+flowchart TB
 	subgraph mobile["UNTRUSTED / MOBILE"]
 		shortcut["iPhone Shortcut"]
 	end
 
 	subgraph relay["PUBLIC RELAY"]
-		webhook["webhook receiver"]
-		auth["authentication"]
-		validate["validation"]
-		queue[("delivery queue")]
+		intake["Webhook receiver<br/>Authentication + validation"]
+		queue[("Delivery queue")]
+
+		intake --> queue
 	end
 
 	subgraph boundary["PRIVATE DELIVERY BOUNDARY"]
-		delivery["private-side delivery path"]
+		delivery["Private-side delivery path"]
 	end
 
 	subgraph lan["TRUSTED LAN"]
-		eventsh["event processing"]
-		state["place-state transition"]
-		ingest["ingestion + enrichment"]
+		processing["Event processing<br/>Place-state transition"]
+		enrichment["Ingestion + enrichment"]
 		db[("SQLite")]
-		viewer["local viewer"]
+		viewer["Local viewer"]
+
+		processing --> enrichment
+		enrichment --> db
+		viewer -->|"reads"| db
 	end
 
-	shortcut -->|"authenticated HTTPS event"| webhook
-	webhook --> auth
-	auth --> validate
-	validate --> queue
+	shortcut -->|"authenticated HTTPS event"| intake
 	queue --> delivery
-	delivery --> eventsh
-	eventsh --> state
-	state --> ingest
-	ingest --> db
-	viewer -->|"reads"| db
+	delivery --> processing
 ```
 
 ### Security properties
