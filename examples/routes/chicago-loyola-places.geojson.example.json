@@ -1,0 +1,80 @@
+{
+  "type": "FeatureCollection",
+  "name": "chicago-loyola-places-example",
+  "example_note": "Public Chicago reference fixture; locations are public landmarks unrelated to the live deployment.",
+  "source": {
+    "geocoder": "OpenStreetMap Nominatim",
+    "retrieved_at": "2026-06-15",
+    "coordinate_order": "GeoJSON [longitude, latitude]"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "place": "sheridan-plaza",
+        "kind": "route-endpoint",
+        "public_name": "Sheridan Plaza",
+        "address": "4607 N Sheridan Rd, Chicago, IL 60640",
+        "osm_source": "Nominatim result for 4607 N Sheridan Rd, Chicago, IL"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -87.6546778,
+          41.965647
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "place": "loyola-lake-shore-campus",
+        "kind": "context-landmark",
+        "public_name": "Loyola University Chicago Lake Shore Campus",
+        "address": "6511 N Sheridan Rd, Chicago, IL 60660",
+        "osm_source": "Nominatim result for 6511 N Sheridan Rd, Chicago, IL"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -87.6601551,
+          41.9985634
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "place": "gentile-arena",
+        "kind": "context-landmark",
+        "public_name": "Joseph J. Gentile Arena",
+        "address": "6526 N Winthrop Ave, Chicago, IL 60660",
+        "osm_source": "Nominatim result for Joseph J. Gentile Center, 6526 N Winthrop Avenue"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -87.6590837,
+          42.0005965
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "place": "kilmer-elementary",
+        "kind": "route-endpoint",
+        "public_name": "Joyce Kilmer Elementary School",
+        "address": "6700 N Greenview Ave, Chicago, IL 60626",
+        "osm_source": "Nominatim result for Kilmer Elementary School, 6700 N Greenview Avenue"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -87.6687558,
+          42.0044497
+        ]
+      }
+    }
+  ]
+}

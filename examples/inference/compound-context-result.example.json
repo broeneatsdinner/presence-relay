@@ -1,0 +1,39 @@
+{
+  "example_note": "Synthetic explainable inference example using the public Chicago reference fixture; prediction logic is not implemented yet.",
+  "inference_result": {
+    "route_key": "sheridan-plaza-to-kilmer-elementary",
+    "planned_departure": "2026-02-27T16:45:00-06:00",
+    "risk_level": "elevated",
+    "confidence": "moderate",
+    "expected_duration_seconds": 1860,
+    "baseline_duration_seconds": 1120,
+    "causality_claimed": false,
+    "reasons": [
+      {
+        "factor": "loyola-basketball-event",
+        "relationship": "route corridor passes near Gentile Arena event impact area",
+        "confidence": "moderate"
+      },
+      {
+        "factor": "chicago-winter-precipitation",
+        "relationship": "similar synthetic sessions were slower during light snow",
+        "confidence": "moderate"
+      },
+      {
+        "factor": "post-sunset-travel",
+        "relationship": "trip overlaps post-sunset period",
+        "confidence": "high"
+      },
+      {
+        "factor": "school-calendar",
+        "relationship": "synthetic school-calendar context may change local pickup and pedestrian patterns",
+        "confidence": "low"
+      }
+    ],
+    "recommendations": [
+      "depart earlier",
+      "consider ashland-clark-alternate"
+    ],
+    "insufficient_evidence": false
+  }
+}

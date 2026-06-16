@@ -1,0 +1,200 @@
+{
+  "type": "FeatureCollection",
+  "name": "chicago-loyola-routes-example",
+  "example_note": "Public Chicago reference route geometry from OSRM demo routing; not a production routing source.",
+  "source": {
+    "router": "OSRM public demo service",
+    "retrieved_at": "2026-06-15",
+    "coordinate_order": "GeoJSON [longitude, latitude]",
+    "duration_note": "OSRM demo durations are routing-reference estimates without live traffic; they are not observed trip durations."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "route_id": "sheridan-corridor",
+        "classification": "primary-reference",
+        "route_role": "primary",
+        "from_place": "sheridan-plaza",
+        "to_place": "kilmer-elementary",
+        "via_context": [
+          "loyola-lake-shore-campus",
+          "gentile-arena"
+        ],
+        "source_service": "OSRM public demo service",
+        "source_profile": "driving",
+        "source_retrieved_at": "2026-06-15",
+        "source_waypoints": [
+          "sheridan-plaza",
+          "gentile-arena",
+          "kilmer-elementary"
+        ],
+        "source_constraint": "route constrained through Gentile Arena fixture point",
+        "distance_m": 6011.4,
+        "duration_seconds": 603.5,
+        "legs": [
+          {
+            "from": "sheridan-plaza",
+            "to": "gentile-arena",
+            "distance_m": 4518.5,
+            "duration_seconds": 392.2
+          },
+          {
+            "from": "gentile-arena",
+            "to": "kilmer-elementary",
+            "distance_m": 1492.9,
+            "duration_seconds": 211.3
+          }
+        ],
+        "step_names": [
+          "North Sheridan Road",
+          "West Loyola Avenue",
+          "North Winthrop Avenue",
+          "West Albion Avenue",
+          "West Pratt Boulevard",
+          "North Bosworth Avenue"
+        ]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -87.654793,
+            41.965646
+          ],
+          [
+            -87.655621,
+            41.997711
+          ],
+          [
+            -87.656191,
+            41.998216
+          ],
+          [
+            -87.66054,
+            41.998191
+          ],
+          [
+            -87.660744,
+            42.00154
+          ],
+          [
+            -87.6591,
+            42.001557
+          ],
+          [
+            -87.658585,
+            42.001562
+          ],
+          [
+            -87.65862,
+            42.002584
+          ],
+          [
+            -87.660788,
+            42.002561
+          ],
+          [
+            -87.66093,
+            42.005557
+          ],
+          [
+            -87.66937,
+            42.0054
+          ],
+          [
+            -87.669125,
+            42.004442
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "route_id": "ashland-clark-alternate",
+        "classification": "alternate-reference",
+        "route_role": "alternate",
+        "from_place": "sheridan-plaza",
+        "to_place": "kilmer-elementary",
+        "source_service": "OSRM public demo service",
+        "source_profile": "driving",
+        "source_retrieved_at": "2026-06-15",
+        "source_waypoints": [
+          "sheridan-plaza",
+          "kilmer-elementary"
+        ],
+        "source_constraint": "first OSRM alternate route between endpoint fixture points",
+        "distance_m": 5790.3,
+        "duration_seconds": 492.7,
+        "step_names": [
+          "North Sheridan Road",
+          "West Wilson Avenue",
+          "North Broadway",
+          "West Lawrence Avenue",
+          "North Ashland Avenue",
+          "North Clark Street",
+          "West Pratt Boulevard",
+          "North Bosworth Avenue"
+        ]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -87.654793,
+            41.965646
+          ],
+          [
+            -87.654791,
+            41.96543
+          ],
+          [
+            -87.657469,
+            41.965401
+          ],
+          [
+            -87.659674,
+            41.969021
+          ],
+          [
+            -87.669349,
+            41.968877
+          ],
+          [
+            -87.669821,
+            41.985945
+          ],
+          [
+            -87.669568,
+            41.986947
+          ],
+          [
+            -87.670138,
+            41.99639
+          ],
+          [
+            -87.670743,
+            41.998813
+          ],
+          [
+            -87.670426,
+            41.999512
+          ],
+          [
+            -87.670603,
+            42.00538
+          ],
+          [
+            -87.66937,
+            42.0054
+          ],
+          [
+            -87.669125,
+            42.004442
+          ]
+        ]
+      }
+    }
+  ]
+}

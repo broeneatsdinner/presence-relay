@@ -1,0 +1,26 @@
+.env
+*.env
+!*.env.example
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
+
+*.log
+*.jsonl
+
+__pycache__/
+*.py[cod]
+
+.DS_Store
+.idea/
+.vscode/
+
+tmp/
+demo/tmp/
+
+# Defense in depth: public exports should never contain private runtime material.
+private/

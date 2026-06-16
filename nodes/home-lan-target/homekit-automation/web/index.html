@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>presence-relay</title>
+	<link rel="stylesheet" href="/assets/css/main.css" />
+</head>
+<body>
+	<div class="topbar">
+		<div class="title">presence-relay</div>
+		<p class="subline mono" id="meta">loading…</p>
+	</div>
+
+	<div class="controls">
+		<form id="controlsForm" method="GET" action="/" style="margin:0; display:flex; gap:10px; align-items:center;">
+			<label class="mono" style="font-size:12px; color: var(--muted2);">limit</label>
+			<select id="limitSel" name="limit" class="mono">
+				<option value="50">50</option>
+				<option value="100">100</option>
+				<option value="200">200</option>
+				<option value="500">500</option>
+				<option value="1000">1000</option>
+			</select>
+			<button type="submit" class="mono">refresh</button>
+		</form>
+	</div>
+
+	<div class="wrap">
+		<div class="card">
+			<div class="table-wrap">
+				<table class="mono">
+					<thead>
+						<tr>
+							<th class="col-ts">ts_iso</th>
+							<th class="col-event">event</th>
+							<th class="col-text">place</th>
+							<th class="col-text">previous_place</th>
+							<th class="col-text">current_place</th>
+							<th class="col-prevnew">prev → new</th>
+							<th class="col-small">changed</th>
+							<th class="col-num">dt_s</th>
+							<th class="col-latlon">lat</th>
+							<th class="col-latlon">lon</th>
+							<th class="col-small">is_day</th>
+							<th class="col-text">light_pattern</th>
+							<th class="col-num">temp_f</th>
+							<th class="col-small">seq</th>
+							<th class="col-small">v</th>
+							<th class="col-text">source</th>
+						</tr>
+					</thead>
+					<tbody id="rows">
+						<tr>
+							<td colspan="16" class="mono" style="color: var(--muted2); padding: 12px 10px;">loading…</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<div class="footer mono">
+				Tip: use the limit dropdown + refresh to pull more/less rows.
+			</div>
+		</div>
+	</div>
+
+<script>
+(function () {
+	function esc(s) {
+		if (s === null || s === undefined) return "";
+		return String(s)
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+			.replaceAll("'", "&#39;");
+	}
+
+	function fmtNum(x, digits) {
+		if (x === null || x === undefined) return "";
+		if (typeof x === "number") return x.toFixed(digits);
+		return String(x);
+	}
+
+	function getLimit() {
+		const qs = new URLSearchParams(window.location.search);
+		const s = (qs.get("limit") || "").trim();
+		if (!/^\d+$/.test(s)) return 200;
+		const n = parseInt(s, 10);
+		if (n < 1) return 50;
+		if (n > 2000) return 2000;
+		return n;
+	}
+
+	async function load() {
+		const limit = getLimit();
+		const limitSel = document.getElementById("limitSel");
+		limitSel.value = String(limit);
+
+		const meta = document.getElementById("meta");
+		const rowsEl = document.getElementById("rows");
+
+		let data;
+		try {
+			const r = await fetch("/api/events?limit=" + encodeURIComponent(String(limit)), { cache: "no-store" });
+			if (!r.ok) throw new Error("HTTP " + r.status);
+			data = await r.json();
+		} catch (e) {
+			meta.textContent = "error loading /api/events: " + String(e);
+			rowsEl.innerHTML = '<tr><td colspan="16" class="mono" style="color: var(--muted2); padding: 12px 10px;">API error</td></tr>';
+			return;
+		}
+
+		meta.textContent = "db=" + (data.db || "?") + "  count=" + (data.count || 0) + "  limit=" + (data.limit || limit);
+
+		const evs = Array.isArray(data.events) ? data.events : [];
+		if (evs.length === 0) {
+			rowsEl.innerHTML = '<tr><td colspan="16" class="mono" style="color: var(--muted2); padding: 12px 10px;">no rows</td></tr>';
+			return;
+		}
+
+		let html = "";
+		for (const e of evs) {
+			const event = (e.event || "").toLowerCase();
+			const place = e.place || "unnamed";
+			const previousPlace = e.previous_place || "unnamed";
+			const currentPlace = e.current_place || "unnamed";
+			const chipClass = event === "leave" ? "chip leave" : "chip arrive";
+
+			const prev = esc(e.previous_status || "");
+			const next = esc(e.new_status || "");
+			const prevnew = prev + " → " + next;
+
+			html += "<tr>";
+			html += '<td class="col-ts">' + esc(e.ts_iso || "") + "</td>";
+			html += '<td class="col-event"><span class="' + chipClass + '">' + esc(event) + "</span></td>";
+			html += '<td class="col-text">' + esc(place) + "</td>";
+			html += '<td class="col-text">' + esc(previousPlace) + "</td>";
+			html += '<td class="col-text">' + esc(currentPlace) + "</td>";
+			html += '<td class="col-prevnew">' + prevnew + "</td>";
+			html += '<td class="col-small">' + esc(e.changed) + "</td>";
+			html += '<td class="col-num">' + esc(e.dt_s) + "</td>";
+			html += '<td class="col-latlon">' + esc(fmtNum(e.lat, 6)) + "</td>";
+			html += '<td class="col-latlon">' + esc(fmtNum(e.lon, 6)) + "</td>";
+			html += '<td class="col-small">' + esc(e.is_day) + "</td>";
+			html += '<td class="col-text">' + esc(e.light_pattern || "") + "</td>";
+			html += '<td class="col-num">' + esc(fmtNum(e.weather_temp_f, 1)) + "</td>";
+			html += '<td class="col-small">' + esc(e.sequence) + "</td>";
+			html += '<td class="col-small">' + esc(e.version) + "</td>";
+			html += '<td class="col-text">' + esc(e.source || "") + "</td>";
+			html += "</tr>";
+		}
+
+		rowsEl.innerHTML = html;
+	}
+
+	load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "example_note": "Synthetic context_event example using the public Chicago reference fixture; this is not a specific actual game.",
+  "context_event": {
+    "id": "ctx-event-venue-001",
+    "source_id": "synthetic-loyola-venue-calendar-001",
+    "source_type": "venue-calendar",
+    "category": "venue-event",
+    "title": "Loyola Home Basketball Game",
+    "starts_at": "2026-02-27T19:00:00-06:00",
+    "ends_at": "2026-02-27T21:00:00-06:00",
+    "venue_name": "Joseph J. Gentile Arena",
+    "venue_latitude": 42.0005965,
+    "venue_longitude": -87.6590837,
+    "status": "scheduled",
+    "impact_profile_id": "venue-event-standard",
+    "source_updated_at": "2026-02-26T12:00:00-06:00",
+    "retrieved_at": "2026-02-27T16:20:00-06:00"
+  }
+}

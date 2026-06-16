@@ -1,0 +1,30 @@
+stateDiagram-v2
+	[*] --> Unnamed
+
+	state "named place\narbitrary lowercase slug" as Named
+	state "unnamed\nobserved outside named places" as Unnamed
+
+	Named --> Unnamed: leave <place>
+	Unnamed --> Named: arrive <place>
+
+	state "Examples from public Chicago fixture" as Examples
+	state Examples {
+		state "sheridan-plaza" as SP
+		state "unnamed" as U1
+		state "unnamed" as U2
+		state "kilmer-elementary" as KE
+
+		SP --> U1: leave sheridan-plaza
+		U2 --> KE: arrive kilmer-elementary
+	}
+
+	note right of Named
+		event = arrive | leave
+		place = lowercase slug | unnamed
+	end note
+
+	note left of Unnamed
+		unnamed is a real observed state.
+		null means no observation or no known value;
+		it is not an operational place-state.
+	end note

@@ -1,0 +1,18 @@
+{
+  "example_note": "Synthetic roadmap example using the public Chicago reference fixture; null means no endpoint observation exists.",
+  "route_session": {
+    "id": 2,
+    "status": "expired",
+    "start_event_id": 1003,
+    "end_event_id": null,
+    "from_place": "sheridan-plaza",
+    "to_place": null,
+    "started_at": "2026-02-28T16:45:00-06:00",
+    "ended_at": null,
+    "duration_seconds": null,
+    "route_key": null,
+    "sample_count": 0,
+    "pairing_version": "route-pairing-v1",
+    "anomaly_code": "no_named_arrival_before_timeout"
+  }
+}

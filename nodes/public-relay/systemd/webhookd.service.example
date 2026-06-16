@@ -1,0 +1,16 @@
+[Unit]
+Description=webhookd (HomeKit geofence bridge)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=presence-relay
+Group=presence-relay
+EnvironmentFile=/opt/presence-relay/app/webhookd.env
+ExecStart=/usr/bin/python3 /opt/presence-relay/app/webhookd.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

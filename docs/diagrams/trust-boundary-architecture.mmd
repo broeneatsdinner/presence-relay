@@ -1,0 +1,58 @@
+flowchart LR
+	subgraph mobile["UNTRUSTED / MOBILE"]
+		shortcut["iPhone Shortcut"]
+		payload["arrive | leave JSON"]
+	end
+
+	subgraph relay["PUBLIC RELAY"]
+		webhook["webhook receiver"]
+		auth["authenticate request"]
+		validate["validate event + place"]
+		queue[("durable delivery queue")]
+	end
+
+	subgraph boundary["PRIVATE DELIVERY BOUNDARY"]
+		delivery["controlled private-side delivery path"]
+	end
+
+	subgraph lan["TRUSTED LAN"]
+		eventsh["event.sh processing"]
+		transition["place-state transition"]
+		ingest["ingest_enrich.py"]
+		db[("trusted-side SQLite")]
+		viewer["local viewer"]
+	end
+
+	shortcut -->|"authenticated HTTPS event"| payload
+	payload --> webhook
+	webhook --> auth
+	auth --> validate
+	validate --> queue
+	queue --> delivery
+	delivery --> eventsh
+	eventsh --> transition
+	transition --> ingest
+	ingest --> db
+	viewer -->|"reads local state"| db
+
+	lan_note["trusted LAN target is not directly exposed publicly"]
+	queue_note["relay validates and queues accepted events"]
+	db_note["durable operational state is created on the trusted side"]
+
+	lan_note -.-> lan
+	queue_note -.-> queue
+	db_note -.-> db
+
+	classDef edge fill:#eef6ff,stroke:#5b7fa6,color:#111827
+	classDef public fill:#fff7e6,stroke:#a66f00,color:#111827
+	classDef boundary fill:#f7f7f7,stroke:#666,color:#111827,stroke-dasharray: 4 4
+	classDef trusted fill:#ecfdf3,stroke:#2f7d4f,color:#111827
+	classDef storage fill:#f5f3ff,stroke:#6d5bd0,color:#111827
+	classDef note fill:#ffffff,stroke:#999,color:#111827,stroke-dasharray: 3 3
+
+	class shortcut,payload edge
+	class webhook,auth,validate public
+	class delivery boundary
+	class eventsh,transition,ingest,viewer trusted
+	class queue,db storage
+	class lan_note,queue_note,db_note note

@@ -1,0 +1,52 @@
+{
+  "example_note": "Synthetic sample observations placed along public OSRM-derived Chicago reference geometry.",
+  "route_session_id": 1,
+  "route_key": "sheridan-plaza-to-kilmer-elementary",
+  "route_classification": "sheridan-corridor",
+  "real_public": [
+    "Chicago reference landmarks",
+    "OSRM-derived route geometry",
+    "sample point positions selected along that geometry"
+  ],
+  "synthetic": [
+    "route-session ID",
+    "timestamps",
+    "accuracy values",
+    "event history",
+    "observed duration"
+  ],
+  "samples": [
+    {
+      "sequence_number": 1,
+      "observed_at": "2026-02-27T16:46:00-06:00",
+      "latitude": 41.965646,
+      "longitude": -87.654793,
+      "horizontal_accuracy_m": 12.0,
+      "source": "synthetic-example"
+    },
+    {
+      "sequence_number": 2,
+      "observed_at": "2026-02-27T16:56:00-06:00",
+      "latitude": 41.998216,
+      "longitude": -87.656191,
+      "horizontal_accuracy_m": 10.0,
+      "source": "synthetic-example"
+    },
+    {
+      "sequence_number": 3,
+      "observed_at": "2026-02-27T17:06:00-06:00",
+      "latitude": 42.001557,
+      "longitude": -87.6591,
+      "horizontal_accuracy_m": 9.0,
+      "source": "synthetic-example"
+    },
+    {
+      "sequence_number": 4,
+      "observed_at": "2026-02-27T17:16:00-06:00",
+      "latitude": 42.004442,
+      "longitude": -87.669125,
+      "horizontal_accuracy_m": 11.0,
+      "source": "synthetic-example"
+    }
+  ]
+}

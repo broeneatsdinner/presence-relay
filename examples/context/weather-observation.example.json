@@ -1,0 +1,19 @@
+{
+  "example_note": "Synthetic context_observation example using the public Chicago reference fixture.",
+  "context_observation": {
+    "id": "obs-weather-001",
+    "source_id": "synthetic-weather-001",
+    "category": "weather",
+    "observed_at": "2026-02-27T16:30:00-06:00",
+    "valid_from": "2026-02-27T16:00:00-06:00",
+    "valid_until": "2026-02-27T17:00:00-06:00",
+    "value_numeric": null,
+    "value_text": "light-snow",
+    "unit": null,
+    "severity": "moderate",
+    "location_scope": "city",
+    "latitude": 41.9985634,
+    "longitude": -87.6601551,
+    "retrieved_at": "2026-02-27T16:35:00-06:00"
+  }
+}
