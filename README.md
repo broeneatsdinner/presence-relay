@@ -323,13 +323,16 @@ public fixture data.
 | Named-place event model | Implemented |
 | Place-state transitions | Implemented |
 | Logging and enrichment | Implemented |
+| Weather enrichment | Implemented |
+| Daylight and light-pattern enrichment | Implemented |
 | SQLite storage | Implemented |
 | Local viewer | Implemented |
 | Route-session lifecycle | Designed |
 | Route sampling | Designed |
 | Historical route baselines | Designed |
-| Context observations and events | Designed |
-| Weather, daylight, air-quality, and event correlation | Roadmap |
+| Broader context observations and events | Designed |
+| Air-quality enrichment | Roadmap |
+| Context and event correlation | Roadmap |
 | Compound-context inference | Roadmap |
 | Confidence scoring | Roadmap |
 | Explainable recommendations | Roadmap |
