@@ -10,6 +10,7 @@ This threat model focuses on publication-safe documentation for a real mobile-to
 - TLS certificate and ACME account material
 - public relay service configuration
 - home-side event database and logs
+- raw doorway observations
 - precise location data
 - home LAN addressing and service names
 
@@ -46,6 +47,10 @@ Controls:
 - bind home services to loopback, LAN, or tunnel interfaces as appropriate
 - avoid port-forwarding home automation services
 
+The physical doorway signal is inside the protected environment. It should use a
+narrow authenticated invocation into local processing, not a new public LAN
+service.
+
 ### Location Disclosure
 
 Raw coordinates, place labels, screenshots, and event logs can reveal sensitive movement patterns.
@@ -56,6 +61,11 @@ Controls:
 - avoid real place names
 - keep event databases and JSONL logs ignored
 - review screenshots visually before publication
+
+Installation photographs are also operational artifacts. Before publication,
+use only a reviewed derivative with metadata stripped, a neutral filename, and
+no residence identifiers, reflections, signage, network details, or materially
+useful access-control detail.
 
 ### Infrastructure Fingerprinting
 

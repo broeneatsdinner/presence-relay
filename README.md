@@ -24,6 +24,14 @@ The implemented system answers:
 
 > Which named-place boundary was crossed, and what state transition occurred?
 
+The implemented system now also records a second, independent physical signal:
+
+> Was the doorway button pressed, and when?
+
+That doorway observation is deliberately raw. It complements the phone-derived
+geofence stream, but it does not infer arrival, departure, occupancy,
+confidence, or causality.
+
 The documented roadmap asks a broader question:
 
 > Given historical movement patterns, environmental conditions, scheduled events, and incomplete signals, what should the operator anticipate before leaving?
@@ -119,9 +127,12 @@ The current system includes:
 - private-side event delivery
 - named-place boundary events
 - explicit place-state transitions
+- physical doorway observations
+- narrow local recording of raw doorway events
 - local logging and enrichment
 - SQLite persistence
 - a local event viewer
+- read-only operator visibility for recent doorway observations
 - backward-compatible legacy fields
 - sanitized deployment templates and examples
 - public-release audit and sanitization tooling
@@ -239,7 +250,7 @@ All public payloads use synthetic timestamps and public-safe fixture data.
 app/                       Relay application code
 clients/iphone-shortcuts/  Sanitized iPhone Shortcut documentation
 docs/                      Architecture, models, threat analysis, and deployment notes
-examples/                  Public-safe payload, route, context, and inference fixtures
+examples/                  Public-safe payload, observation, route, context, and inference fixtures
 nodes/public-relay/        Public relay deployment templates
 nodes/home-lan-target/     Trusted LAN-side processing and viewer components
 tools/audit/               Public-release and sanitization checks
@@ -298,12 +309,14 @@ public fixture data.
 | Public/private trust-boundary separation | Implemented |
 | Named-place event model | Implemented |
 | Place-state transitions | Implemented |
+| Physical doorway observations | Implemented |
 | Logging and enrichment | Implemented |
 | Weather enrichment | Implemented |
 | Daylight and light-pattern enrichment | Implemented |
 | SQLite storage | Implemented |
 | Local viewer | Implemented |
 | Route-session lifecycle | Designed |
+| Doorway/geofence temporal correlation | Designed |
 | Route sampling | Designed |
 | Historical route baselines | Designed |
 | Broader context observations and events | Designed |
@@ -364,6 +377,43 @@ named-place boundary events
 ```
 
 See [Route Sessions](docs/route-sessions.md) and [Route Data Model](docs/route-data-model.md).
+
+---
+
+## Physical Doorway Observation
+
+Presence Relay now combines phone-derived geofence observations with a quiet
+physical observation point at the doorway boundary.
+
+```text
+physical doorway press
+  -> home automation
+  -> authenticated invocation
+  -> narrow recorder
+  -> raw observation store
+  -> later correlation with geofence transitions
+```
+
+The last step is future work. The implemented portion records the press as a raw
+fact and exposes recent rows through a read-only operator query.
+
+The engineering value is not the button by itself. The important boundary is
+between observation and interpretation:
+
+```text
+raw fact:
+  a doorway press happened at a time
+
+derived question:
+  does that press plausibly support a leave-home or arrive-home transition?
+```
+
+A missed press is not a failed system. It is missing evidence. A late or
+duplicate press is not forced into a clean narrative. Future correlation should
+use bounded windows, avoid reusing one doorway observation across multiple
+transitions, and classify uncertain cases honestly.
+
+See [Doorway Observations](docs/doorway-observations.md).
 
 ---
 
@@ -431,6 +481,7 @@ Presence Relay demonstrates:
 
 - trust-boundary security architecture and attack-surface reduction
 - authenticated mobile event delivery across deliberately separated public and private responsibilities
+- independent phone-derived and physical-boundary observation streams
 - Linux service operation, shell tooling, and private-network integration
 - explicit event and state modeling
 - schema evolution and backward compatibility

@@ -23,7 +23,8 @@ Trusted LAN resources
 
 ## Current Event Semantics
 
-The current model uses separate `event` and `place` dimensions:
+The current phone-derived geofence model uses separate `event` and `place`
+dimensions:
 
 - `event`: `arrive` or `leave`
 - `place`: named lowercase slug or `unnamed`
@@ -34,6 +35,27 @@ Place-state fields use only place vocabulary:
 - `current_place`
 
 See [Place State](place-state.md) for the canonical model and migration notes.
+
+The system also records physical doorway observations at the doorway boundary.
+Those observations are intentionally raw facts, not geofence transitions:
+
+```text
+physical doorway press
+	|
+	| home automation and authenticated invocation
+	v
+narrow recorder
+	|
+	v
+local SQLite raw observation
+```
+
+A doorway observation asks whether the button was pressed and when. It does not
+infer arrival, departure, journey direction, occupancy, confidence, or causality.
+Later correlation with phone-derived geofence transitions is designed but not
+implemented.
+
+See [Doorway Observations](doorway-observations.md).
 
 ## Trust Boundaries
 
@@ -89,11 +111,17 @@ The trusted LAN target receives validated events and performs local logging,
 enrichment, storage, display, or automation. It should remain reachable only
 from trusted local interfaces or the private delivery path.
 
+The physical doorway signal originates inside this protected environment. It
+uses a narrow authenticated invocation into local processing and writes a raw
+observation locally; no LAN service is exposed to the public internet merely to
+support the button.
+
 Sensitive material:
 
 - raw event database
 - local logs
 - local automation names
+- physical automation configuration
 - viewer URLs
 - private LAN IP addresses
 - enriched coordinates or place labels

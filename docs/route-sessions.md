@@ -208,3 +208,38 @@ Project principle:
 ```text
 Predict. Not react.
 ```
+
+## Relationship To Doorway Observations
+
+Doorway observations are an independent physical signal, not a route-session
+endpoint by themselves.
+
+They may later help classify or explain route sessions:
+
+```text
+doorway press
+  -> leave-home geofence transition
+  -> open route session
+
+arrive-home geofence transition
+  -> doorway press
+  -> complete route session with physical-boundary support
+```
+
+That correlation is future work. Initial route-session pairing should continue
+to rely on phone-derived named-place boundary events. A doorway press should not
+silently create a geofence transition, open a route session, close a route
+session, or imply occupancy state.
+
+Future correlation rules should use bounded time windows, avoid reusing a single
+doorway observation for multiple transitions, tolerate late or duplicate
+presses, and preserve uncertainty with classifications such as:
+
+```text
+matched
+no_plausible_press
+ambiguous
+outside_expected_window
+```
+
+See [Doorway Observations](doorway-observations.md).

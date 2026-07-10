@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-01-01T08:00:00-07:00",
+  "observed_epoch": 1767279600,
+  "ingested_at": "2026-01-01T08:00:02-07:00",
+  "device": "doorway-button-example",
+  "press_type": "single",
+  "source": "physical-doorway-observation",
+  "schema_version": 1
+}

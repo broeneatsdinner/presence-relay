@@ -8,6 +8,7 @@ Start here:
 
 - [Architecture](architecture.md)
 - [Place State](place-state.md)
+- [Doorway Observations](doorway-observations.md)
 - [Route Sessions](route-sessions.md)
 - [Route Data Model](route-data-model.md)
 - [Chicago Reference Scenario](chicago-reference-scenario.md)
