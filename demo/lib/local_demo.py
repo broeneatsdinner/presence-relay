@@ -78,35 +78,41 @@ def deliver(queue_db: Path, demo_home: Path, event_sh: Path, adapter_log: Path) 
 	conn = sqlite3.connect(str(queue_db))
 	conn.row_factory = sqlite3.Row
 	try:
-		rows = conn.execute("""
-			SELECT *
-			FROM queue
-			WHERE delivered_at_epoch IS NULL
-			ORDER BY id ASC;
-		""").fetchall()
-
 		env = os.environ.copy()
 		env["HOME"] = str(demo_home)
 		adapter_log.parent.mkdir(parents=True, exist_ok=True)
 
+		row = conn.execute("""
+			SELECT *
+			FROM queue
+			WHERE delivered_at_epoch IS NULL
+			ORDER BY id ASC;
+		""").fetchone()
+
+		if row is None:
+			return
+
+		now = int(time.time())
+		if int(row["next_attempt_epoch"]) > now:
+			return
+
+		payload = row_payload(row)
+		cmd = [
+			"bash",
+			str(event_sh),
+			str(payload["event"]),
+			str(payload["place"]),
+			"" if payload["lat"] is None else str(payload["lat"]),
+			"" if payload["lon"] is None else str(payload["lon"]),
+			"" if payload["ts"] is None else str(payload["ts"]),
+		]
 		with adapter_log.open("a", encoding="utf-8") as log:
-			for row in rows:
-				payload = row_payload(row)
-				cmd = [
-					"bash",
-					str(event_sh),
-					str(payload["event"]),
-					str(payload["place"]),
-					"" if payload["lat"] is None else str(payload["lat"]),
-					"" if payload["lon"] is None else str(payload["lon"]),
-					"" if payload["ts"] is None else str(payload["ts"]),
-				]
-				subprocess.run(cmd, env=env, stdout=log, stderr=log, text=True, check=True)
-				conn.execute(
-					"UPDATE queue SET delivered_at_epoch = ? WHERE id = ?;",
-					(int(time.time()), row["id"]),
-				)
-			conn.commit()
+			subprocess.run(cmd, env=env, stdout=log, stderr=log, text=True, check=True)
+		conn.execute(
+			"UPDATE queue SET delivered_at_epoch = ? WHERE id = ?;",
+			(int(time.time()), row["id"]),
+		)
+		conn.commit()
 	finally:
 		conn.close()
 

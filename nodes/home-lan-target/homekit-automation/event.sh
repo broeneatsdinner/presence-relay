@@ -22,6 +22,13 @@ set -euo pipefail
 # - Net effect: the phone no longer needs to be on the VPN to deliver events; only the
 #   public relay needs network reachability to the home LAN target over the private-side path.
 #
+# v7 (SQLite-first acceptance and asynchronous enrichment):
+# - this entrypoint delegates accepted raw event persistence to ingest_enrich.py before
+#   compatibility projections are emitted.
+# - automation.log, state, and sequence files are derived projections, not the authoritative
+#   acceptance record.
+# - enrichment is triggered best-effort after acceptance and does not block this invocation.
+#
 # Change date: 2026-01-14
 # ------------------------------------------------------------------------------
 
@@ -125,80 +132,38 @@ fi
 
 process_event() {
 	# Prefer phone-provided timestamp if present and parseable; otherwise use home LAN target clock.
-	now="$(iso_now)"
-	now_epoch="$(epoch_from_iso "$now")"
-	ts_src="pi"
-
 	if [[ -n "${ts:-}" ]]; then
-		if ts_epoch="$(epoch_from_iso "$ts" 2>/dev/null)"; then
-			now="$ts"
-			now_epoch="$ts_epoch"
-			ts_src="phone"
+		if ! epoch_from_iso "$ts" >/dev/null 2>&1; then
+			ts="$(iso_now)"
 		fi
-	fi
-
-	# load and bump sequence
-	if [[ -f "$SEQ_FILE" ]]; then
-		read -r seq <"$SEQ_FILE"
 	else
-		seq=0
-	fi
-	seq=$((seq + 1))
-	printf '%s\n' "$seq" >"$SEQ_FILE"
-
-	# load previous state
-	if [[ -f "$STATE_FILE" ]]; then
-		read -r prev_state <"$STATE_FILE"
-	else
-		prev_state="unknown"
+		ts="$(iso_now)"
 	fi
 
-	case "$event" in
-		arrive) new_state="home" ;;
-		leave)  new_state="away" ;;
-	esac
+	# SQLite acceptance is authoritative. Log/state/sequence files are projections
+	# emitted by ingest_enrich.py only after the raw row commits.
+	python3 "$BASE/ingest_enrich.py" \
+		--db "$BASE/db/homekit.sqlite" \
+		--log "$LOG" \
+		--state-file "$STATE_FILE" \
+		--seq-file "$SEQ_FILE" \
+		--last-epoch-file "$LAST_EPOCH_FILE" \
+		--accept-event "$event" \
+		--place "$place" \
+		--lat "$lat" \
+		--lon "$lon" \
+		--ts "$ts" \
+		--quiet
 
-	case "$event" in
-		arrive)
-			previous_place="unnamed"
-			current_place="$place"
-			;;
-		leave)
-			previous_place="$place"
-			current_place="unnamed"
-			;;
-	esac
-
-	# seconds since last event (telemetry only)
-	if [[ -f "$LAST_EPOCH_FILE" ]]; then
-		read -r prev_epoch <"$LAST_EPOCH_FILE" || prev_epoch=""
-	else
-		prev_epoch=""
+	if [[ "${PRESENCE_RELAY_DISABLE_ASYNC_ENRICH:-0}" != "1" ]]; then
+		(
+			python3 "$BASE/ingest_enrich.py" \
+				--db "$BASE/db/homekit.sqlite" \
+				--no-ingest \
+				--enrich-one \
+				--quiet
+		) >/dev/null 2>&1 &
 	fi
-
-	dt_s="-"
-	if [[ -n "${prev_epoch:-}" && "$prev_epoch" =~ ^[0-9]+$ ]]; then
-		dt_s=$((now_epoch - prev_epoch))
-	fi
-
-	changed=0
-	if [[ "$prev_state" != "$new_state" ]]; then
-		changed=1
-	fi
-
-	# build the exact log line
-	printf -v line '%s\tseq=%s\tprev=%s\tnew=%s\tchanged=%s\tevent=%s\tdt_s=%s\tlat=%s\tlon=%s\tts=%s\tts_src=%s\tsource=presence-relay\tv=6\tplace=%s\tprevious_place=%s\tcurrent_place=%s' \
-		"$now" "$seq" "$prev_state" "$new_state" "$changed" "$event" "$dt_s" "$lat" "$lon" "$ts" "$ts_src" "$place" "$previous_place" "$current_place"
-
-	# append to log
-	printf '%s\n' "$line" >>"$LOG"
-
-	# update state tracking
-	printf '%s\n' "$new_state" >"$STATE_FILE"
-	printf '%s\n' "$now_epoch" >"$LAST_EPOCH_FILE"
-
-	# ingest+enrich exactly this one line.
-	python3 "$BASE/ingest_enrich.py" --enrich --ingest-stdin --quiet <<<"$line" >/dev/null 2>&1
 }
 
 mkdir -p "$BASE/db"

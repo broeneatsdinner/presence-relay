@@ -18,6 +18,7 @@ DEMO_TOKEN="presence-relay-demo-token"
 HOST="127.0.0.1"
 PORT="18787"
 export PRESENCE_RELAY_DISABLE_WEATHER=1
+export PRESENCE_RELAY_DISABLE_ASYNC_ENRICH=1
 
 cleanup_server() {
 	python3 "$HELPER" stop "$PID_FILE" >/dev/null 2>&1 || true

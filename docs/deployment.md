@@ -29,6 +29,39 @@ tools/audit/               local audit tools for import and publication review
 
 The repo should describe how the system is deployed, but the live deployment should keep private environment files, runtime state, certificates, keys, logs, and databases outside version control.
 
+Implemented deployment behavior is described at the role level:
+
+- the public relay authenticates incoming mobile events
+- accepted relay events are committed to a SQLite durability queue before
+  delivery
+- relay delivery is strict FIFO by durable insertion order, with retry/backoff
+  across the public/private trust boundary
+- the protected LAN processing node commits the raw event to SQLite before
+  updating derived projections
+- enrichment is asynchronous and recovery-driven; event acceptance and mobile
+  acknowledgment do not wait for environmental context
+
+Do not convert those role descriptions into public deployment instructions that
+publish live service unit names, private hostnames, SSH aliases, account names,
+exact database paths, provider URLs, command output, or runtime row contents.
+
+## Operational Verification Boundary
+
+The live system has been verified after the latest architecture changes:
+
+- public relay service restart completed with strict FIFO delivery in place
+- relay durability queue was healthy at deployment
+- protected LAN database migration completed with integrity intact
+- historical event enrichment completed using the stored event time and UTC
+  environmental hour
+- asynchronous enrichment completed successfully
+- recovery timer behavior is enabled and active
+- pending historical enrichment rows are draining oldest-first
+
+Public documentation may state those outcomes. It must not include exact
+commands, timestamps, hostnames, service names, usernames, paths, queue row
+contents, provider responses, or machine identities.
+
 ## Example File Policy
 
 Commit:

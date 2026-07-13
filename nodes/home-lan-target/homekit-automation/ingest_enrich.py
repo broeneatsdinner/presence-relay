@@ -5,11 +5,12 @@ ingest_enrich.py
 
 Purpose
 - Ingest ~/homekit-automation/automation.log (whitespace-delimited lines; tabs are fine)
-- Store events in SQLite (schema mirrors automation.log + small enrichment)
-- Optionally enrich each event with ONLY:
+- Accept raw event records into SQLite before derived projections are emitted
+- Store compatibility fields for the local viewer
+- Optionally enrich one oldest unfinished event with ONLY:
 	- is_day (0/1)
 	- light_pattern: pre-dawn, rising, noon, afternoon, setting, twilight, dark
-	- weather_temp_f (Fahrenheit) via Open-Meteo archive API (best-effort)
+	- weather_temp_f (Fahrenheit) via a configured historical weather endpoint (best-effort)
 
 Deps (Pi)
 - python3 -m pip install --user astral requests
@@ -26,6 +27,9 @@ Usage
 
 - Ingest+enrich lines from stdin (used by event.sh):
 	echo "..." | python3 ~/homekit-automation/ingest_enrich.py --enrich --ingest-stdin
+
+- Accept a single event and emit projections only after the row commits:
+	python3 ~/homekit-automation/ingest_enrich.py --accept-event leave --place example-place --lat 0 --lon 0 --ts 2026-01-01T08:00:00Z
 
 - Disable only the optional weather lookup:
 	PRESENCE_RELAY_DISABLE_WEATHER=1 python3 ~/homekit-automation/ingest_enrich.py --enrich
@@ -58,6 +62,14 @@ except Exception:
 DEFAULT_BASE = Path.home() / "homekit-automation"
 DEFAULT_LOG = DEFAULT_BASE / "automation.log"
 DEFAULT_DB = DEFAULT_BASE / "db" / "homekit.sqlite"
+ENRICH_PENDING = "pending"
+ENRICH_RETRY = "retry"
+ENRICH_COMPLETE = "complete"
+ENRICH_TERMINAL = "terminal"
+ENRICH_STATUSES = {ENRICH_PENDING, ENRICH_RETRY, ENRICH_COMPLETE, ENRICH_TERMINAL}
+MAX_ENRICH_ATTEMPTS = int(os.environ.get("PRESENCE_RELAY_MAX_ENRICH_ATTEMPTS", "5"))
+MIN_ENRICH_BACKOFF_SECONDS = int(os.environ.get("PRESENCE_RELAY_MIN_ENRICH_BACKOFF_SECONDS", "60"))
+MAX_ENRICH_BACKOFF_SECONDS = int(os.environ.get("PRESENCE_RELAY_MAX_ENRICH_BACKOFF_SECONDS", "3600"))
 
 PREDAWN_MIN = 60
 NOON_WINDOW_MIN = 30
@@ -73,6 +85,23 @@ def die(msg: str, code: int = 1) -> None:
 
 def sha256_hex(s: str) -> str:
 	return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def canonical_event_uid(event: Any, place: Any, lat: Any, lon: Any, ts_iso: Any) -> str:
+	payload = {
+		"event": "" if event is None else str(event).strip().lower(),
+		"place": normalize_place(place),
+		"lat": "" if lat is None else str(lat).strip(),
+		"lon": "" if lon is None else str(lon).strip(),
+		"ts": "" if ts_iso is None else str(ts_iso).strip(),
+	}
+	return sha256_hex(json_dumps_stable(payload))
+
+
+def json_dumps_stable(payload: Dict[str, Any]) -> str:
+	import json
+
+	return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def normalize_place(value: Any) -> str:
@@ -239,21 +268,41 @@ def db_init(conn: sqlite3.Connection) -> None:
 		ts_epoch INTEGER NOT NULL,
 		raw_line TEXT NOT NULL,
 		raw_sha256 TEXT NOT NULL UNIQUE,
+		accepted_uid TEXT UNIQUE,
 		ingested_at_epoch INTEGER NOT NULL,
 
+		projected_at_epoch INTEGER,
+		enrichment_status TEXT NOT NULL DEFAULT 'pending',
+		enrichment_attempts INTEGER NOT NULL DEFAULT 0,
+		enrichment_next_attempt_epoch INTEGER NOT NULL DEFAULT 0,
+		enrichment_last_error TEXT,
+		enriched_at_epoch INTEGER,
+		environmental_hour_utc TEXT,
 		is_day INTEGER,
 		light_pattern TEXT,
-		weather_temp_f REAL
+		weather_temp_f REAL,
+		weather_temp_label TEXT
 	);
 	""")
 
 	cols = {row["name"] for row in conn.execute("PRAGMA table_info(events);").fetchall()}
-	if "place" not in cols:
-		conn.execute("ALTER TABLE events ADD COLUMN place TEXT DEFAULT 'unnamed';")
-	if "previous_place" not in cols:
-		conn.execute("ALTER TABLE events ADD COLUMN previous_place TEXT DEFAULT 'unnamed';")
-	if "current_place" not in cols:
-		conn.execute("ALTER TABLE events ADD COLUMN current_place TEXT DEFAULT 'unnamed';")
+	add_cols = {
+		"place": "TEXT DEFAULT 'unnamed'",
+		"previous_place": "TEXT DEFAULT 'unnamed'",
+		"current_place": "TEXT DEFAULT 'unnamed'",
+		"accepted_uid": "TEXT",
+		"projected_at_epoch": "INTEGER",
+		"enrichment_status": "TEXT NOT NULL DEFAULT 'pending'",
+		"enrichment_attempts": "INTEGER NOT NULL DEFAULT 0",
+		"enrichment_next_attempt_epoch": "INTEGER NOT NULL DEFAULT 0",
+		"enrichment_last_error": "TEXT",
+		"enriched_at_epoch": "INTEGER",
+		"environmental_hour_utc": "TEXT",
+		"weather_temp_label": "TEXT",
+	}
+	for col, decl in add_cols.items():
+		if col not in cols:
+			conn.execute(f"ALTER TABLE events ADD COLUMN {col} {decl};")
 
 	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts_epoch ON events(ts_epoch);")
 	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_event ON events(event);")
@@ -261,6 +310,15 @@ def db_init(conn: sqlite3.Connection) -> None:
 	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_previous_place ON events(previous_place);")
 	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_current_place ON events(current_place);")
 	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_new_status ON events(new_status);")
+	conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_events_accepted_uid ON events(accepted_uid) WHERE accepted_uid IS NOT NULL;")
+	conn.execute("CREATE INDEX IF NOT EXISTS idx_events_enrichment_pending ON events(enrichment_status, enrichment_next_attempt_epoch, id);")
+
+	conn.execute("""
+	CREATE TABLE IF NOT EXISTS projection_state (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);
+	""")
 
 	conn.execute("""
 	CREATE TABLE IF NOT EXISTS weather_hourly_cache (
@@ -321,6 +379,202 @@ def ingest_one_line(conn: sqlite3.Connection, line: str) -> Tuple[Optional[int],
 		return (None, False)
 
 
+def _next_sequence(conn: sqlite3.Connection) -> int:
+	row = conn.execute("SELECT value FROM projection_state WHERE key='sequence';").fetchone()
+	try:
+		seq = int(row["value"]) if row is not None else 0
+	except Exception:
+		seq = 0
+	return seq + 1
+
+
+def _state_value(conn: sqlite3.Connection, key: str, default: str) -> str:
+	row = conn.execute("SELECT value FROM projection_state WHERE key=?;", (key,)).fetchone()
+	if row is None:
+		return default
+	return str(row["value"])
+
+
+def _set_state_value(conn: sqlite3.Connection, key: str, value: Any) -> None:
+	conn.execute("""
+	INSERT INTO projection_state (key, value)
+	VALUES (?, ?)
+	ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+	""", (key, str(value)))
+
+
+def _dt_seconds(previous_epoch: str, current_epoch: int) -> Optional[int]:
+	try:
+		return current_epoch - int(previous_epoch)
+	except Exception:
+		return None
+
+
+def _projection_line(row: sqlite3.Row) -> str:
+	dt_s = "-" if row["dt_s"] is None else str(row["dt_s"])
+	lat = "" if row["lat"] is None else str(row["lat"])
+	lon = "" if row["lon"] is None else str(row["lon"])
+	return (
+		f"{row['ts_iso']}\t"
+		f"seq={row['sequence']}\t"
+		f"prev={row['previous_status']}\t"
+		f"new={row['new_status']}\t"
+		f"changed={row['changed']}\t"
+		f"event={row['event']}\t"
+		f"dt_s={dt_s}\t"
+		f"lat={lat}\t"
+		f"lon={lon}\t"
+		f"source={row['source']}\t"
+		f"v={row['version']}\t"
+		f"place={row['place']}\t"
+		f"previous_place={row['previous_place']}\t"
+		f"current_place={row['current_place']}"
+	)
+
+
+def _write_projection_files(row: sqlite3.Row, log_path: Path, state_file: Path, seq_file: Path, last_epoch_file: Path) -> None:
+	log_path.parent.mkdir(parents=True, exist_ok=True)
+	state_file.parent.mkdir(parents=True, exist_ok=True)
+	seq_file.parent.mkdir(parents=True, exist_ok=True)
+	last_epoch_file.parent.mkdir(parents=True, exist_ok=True)
+
+	with log_path.open("a", encoding="utf-8") as f:
+		f.write(_projection_line(row) + "\n")
+	state_file.write_text(str(row["new_status"]) + "\n", encoding="utf-8")
+	seq_file.write_text(str(row["sequence"]) + "\n", encoding="utf-8")
+	last_epoch_file.write_text(str(row["ts_epoch"]) + "\n", encoding="utf-8")
+
+
+def accept_event(
+	conn: sqlite3.Connection,
+	event: str,
+	place_value: Any,
+	lat_value: Any,
+	lon_value: Any,
+	ts_value: Any,
+	source: str = "presence-relay",
+	version: int = 7,
+) -> Tuple[Optional[int], bool, bool]:
+	if event not in ("arrive", "leave"):
+		return (None, False, False)
+
+	place = normalize_place(place_value)
+	ts_iso = str(ts_value or "").strip()
+	if not ts_iso:
+		ts_iso = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+	try:
+		dt = parse_iso_dt(ts_iso)
+	except Exception:
+		return (None, False, False)
+
+	def to_float(value: Any) -> Optional[float]:
+		if value is None:
+			return None
+		s = str(value).strip()
+		if not s:
+			return None
+		try:
+			return float(s)
+		except Exception:
+			return None
+
+	lat = to_float(lat_value)
+	lon = to_float(lon_value)
+	previous_place, current_place = derive_place_state(event, place)
+	accepted_uid = canonical_event_uid(event, place, lat_value, lon_value, ts_iso)
+	raw_payload = json_dumps_stable({
+		"event": event,
+		"place": place,
+		"lat": "" if lat_value is None else str(lat_value).strip(),
+		"lon": "" if lon_value is None else str(lon_value).strip(),
+		"ts": ts_iso,
+	})
+	raw_sha = sha256_hex(raw_payload)
+	now_epoch = int(time.time())
+
+	try:
+		cur = conn.execute("""
+		INSERT INTO events (
+			date, time, offset, sequence, previous_status, new_status, changed, event, place, previous_place, current_place, dt_s,
+			lat, lon, source, version,
+			ts_iso, ts_epoch,
+			raw_line, raw_sha256, accepted_uid, ingested_at_epoch,
+			enrichment_status, enrichment_next_attempt_epoch
+		) VALUES (?, ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		""", (
+			dt.date().isoformat(),
+			dt.strftime("%H:%M:%S"),
+			_offset_str_from_ts(ts_iso, dt),
+			event,
+			place,
+			previous_place,
+			current_place,
+			lat,
+			lon,
+			source,
+			version,
+			ts_iso,
+			int(dt.timestamp()),
+			raw_payload,
+			raw_sha,
+			accepted_uid,
+			now_epoch,
+			ENRICH_PENDING,
+			0,
+		))
+		conn.commit()
+		event_id = int(cur.lastrowid)
+		inserted = True
+	except sqlite3.IntegrityError:
+		conn.rollback()
+		row = conn.execute("SELECT id, projected_at_epoch FROM events WHERE accepted_uid=?;", (accepted_uid,)).fetchone()
+		if row is None:
+			row = conn.execute("SELECT id, projected_at_epoch FROM events WHERE raw_sha256=?;", (raw_sha,)).fetchone()
+		if row is None:
+			return (None, False, False)
+		event_id = int(row["id"])
+		inserted = False
+		if row["projected_at_epoch"] is not None:
+			return (event_id, False, False)
+
+	try:
+		prev_status = _state_value(conn, "status", "unknown")
+		prev_epoch = _state_value(conn, "last_epoch", "")
+		new_status = "home" if event == "arrive" else "away"
+		changed = 0 if prev_status == new_status else 1
+		seq = _next_sequence(conn)
+		ts_epoch = int(dt.timestamp())
+		dt_s = _dt_seconds(prev_epoch, ts_epoch)
+		projected_epoch = int(time.time())
+
+		cur = conn.execute("""
+		UPDATE events SET
+			sequence=?,
+			previous_status=?,
+			new_status=?,
+			changed=?,
+			dt_s=?,
+			projected_at_epoch=?
+		WHERE id=? AND projected_at_epoch IS NULL;
+		""", (seq, prev_status, new_status, changed, dt_s, projected_epoch, event_id))
+		if cur.rowcount == 0:
+			conn.rollback()
+			return (event_id, inserted, False)
+
+		_set_state_value(conn, "sequence", seq)
+		_set_state_value(conn, "status", new_status)
+		_set_state_value(conn, "last_epoch", ts_epoch)
+		conn.commit()
+		return (event_id, inserted, True)
+	except Exception:
+		conn.rollback()
+		raise
+
+
+def fetch_event(conn: sqlite3.Connection, event_id: int) -> Optional[sqlite3.Row]:
+	return conn.execute("SELECT * FROM events WHERE id=?;", (event_id,)).fetchone()
+
+
 def ingest_log(conn: sqlite3.Connection, log_path: Path, limit: Optional[int] = None) -> Tuple[int, int]:
 	if not log_path.exists():
 		die(f"log not found: {log_path}")
@@ -362,8 +616,11 @@ def open_meteo_temp_c_hour(conn: sqlite3.Connection, lat: float, lon: float, dt:
 	if requests is None:
 		return None
 
-	date_str = dt.date().isoformat()
-	hour_key = dt.replace(minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:00")
+	if dt.tzinfo is None:
+		dt = dt.replace(tzinfo=timezone.utc)
+	dt_utc = dt.astimezone(timezone.utc)
+	date_str = dt_utc.date().isoformat()
+	hour_key = environmental_hour_utc(dt)
 
 	lat_b, lon_b = latlon_bucket(lat, lon)
 	row = conn.execute("""
@@ -374,14 +631,17 @@ def open_meteo_temp_c_hour(conn: sqlite3.Connection, lat: float, lon: float, dt:
 	if row is not None:
 		return row["temp_c"]
 
-	url = "https://archive-api.open-meteo.com/v1/archive"
+	url = os.environ.get("PRESENCE_RELAY_WEATHER_ARCHIVE_URL", "").strip()
+	if not url:
+		return None
+
 	params = {
 		"latitude": f"{lat:.6f}",
 		"longitude": f"{lon:.6f}",
 		"start_date": date_str,
 		"end_date": date_str,
 		"hourly": "temperature_2m",
-		"timezone": "auto",
+		"timezone": "UTC",
 	}
 
 	try:
@@ -396,7 +656,11 @@ def open_meteo_temp_c_hour(conn: sqlite3.Connection, lat: float, lon: float, dt:
 	t2m = hourly.get("temperature_2m") or []
 
 	try:
-		idx = times.index(hour_key)
+		if hour_key in times:
+			idx = times.index(hour_key)
+		else:
+			compact_hour_key = hour_key.replace(":00:00Z", ":00")
+			idx = times.index(compact_hour_key)
 	except Exception:
 		return None
 
@@ -412,7 +676,7 @@ def open_meteo_temp_c_hour(conn: sqlite3.Connection, lat: float, lon: float, dt:
 	""", (
 		lat_b, lon_b, hour_key,
 		temp_c,
-		"open-meteo-archive",
+		"historical-weather",
 		int(time.time())
 	))
 	conn.commit()
@@ -485,9 +749,38 @@ def compute_sun_small(lat: float, lon: float, dt: datetime) -> Optional[Dict[str
 	}
 
 
+def environmental_hour_utc(dt: datetime) -> str:
+	if dt.tzinfo is None:
+		dt = dt.replace(tzinfo=timezone.utc)
+	return dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:00:00Z")
+
+
+def weather_label_from_temp_f(temp_f: Optional[float]) -> Optional[str]:
+	if temp_f is None:
+		return None
+	try:
+		f = float(temp_f)
+	except Exception:
+		return None
+	if f < 32:
+		return "freezing"
+	if f < 50:
+		return "cold"
+	if f < 70:
+		return "mild"
+	if f < 85:
+		return "warm"
+	return "hot"
+
+
+def _compute_enrich_backoff_seconds(attempts: int) -> int:
+	sec = MIN_ENRICH_BACKOFF_SECONDS * (2 ** max(0, attempts - 1))
+	return int(min(MAX_ENRICH_BACKOFF_SECONDS, sec))
+
+
 def enrich_event_id(conn: sqlite3.Connection, event_id: int) -> bool:
 	row = conn.execute("""
-	SELECT id, ts_iso, lat, lon, is_day, light_pattern, weather_temp_f
+	SELECT id, ts_iso, lat, lon, is_day, light_pattern, weather_temp_f, environmental_hour_utc, enrichment_attempts
 	FROM events
 	WHERE id=?;
 	""", (event_id,)).fetchone()
@@ -497,7 +790,12 @@ def enrich_event_id(conn: sqlite3.Connection, event_id: int) -> bool:
 	if row["lat"] is None or row["lon"] is None:
 		return False
 
-	need = (row["is_day"] is None) or (row["light_pattern"] is None) or (row["weather_temp_f"] is None)
+	need = (
+		(row["is_day"] is None)
+		or (row["light_pattern"] is None)
+		or (row["weather_temp_f"] is None)
+		or (row["environmental_hour_utc"] is None)
+	)
 	if not need:
 		return True
 
@@ -512,50 +810,77 @@ def enrich_event_id(conn: sqlite3.Connection, event_id: int) -> bool:
 	sun = compute_sun_small(lat, lon, dt)
 	temp_c = open_meteo_temp_c_hour(conn, lat, lon, dt)
 	temp_f = c_to_f(temp_c)
+	hour_utc = environmental_hour_utc(dt)
+	temp_label = weather_label_from_temp_f(temp_f)
+	is_day_value = (sun or {}).get("is_day")
+	light_pattern_value = (sun or {}).get("light_pattern")
 
 	conn.execute("""
 	UPDATE events SET
+		environmental_hour_utc=COALESCE(?, environmental_hour_utc),
 		is_day=COALESCE(?, is_day),
 		light_pattern=COALESCE(?, light_pattern),
-		weather_temp_f=COALESCE(?, weather_temp_f)
+		weather_temp_f=COALESCE(?, weather_temp_f),
+		weather_temp_label=COALESCE(?, weather_temp_label)
 	WHERE id=?;
 	""", (
-		(sun or {}).get("is_day"),
-		(sun or {}).get("light_pattern"),
+		hour_utc,
+		is_day_value,
+		light_pattern_value,
 		temp_f,
+		temp_label,
 		event_id
 	))
 	conn.commit()
-	return True
+	return hour_utc is not None and is_day_value is not None and light_pattern_value is not None and temp_f is not None
 
 
 def enrich_events(conn: sqlite3.Connection, limit: Optional[int] = None) -> Tuple[int, int]:
-	q = """
-	SELECT id
+	row = conn.execute("""
+	SELECT id, enrichment_attempts
 	FROM events
-	WHERE lat IS NOT NULL
-	AND lon IS NOT NULL
-	AND (
-		is_day IS NULL
-		OR light_pattern IS NULL
-		OR weather_temp_f IS NULL
-	)
-	ORDER BY ts_epoch ASC
-	"""
-	if limit is not None:
-		q += f" LIMIT {int(limit)}"
+	WHERE enrichment_status IN ('pending', 'retry')
+	AND enrichment_next_attempt_epoch <= ?
+	ORDER BY id ASC
+	LIMIT 1;
+	""", (int(time.time()),)).fetchone()
+	if row is None:
+		return (0, 0)
 
-	rows = conn.execute(q).fetchall()
-	done = 0
-	skipped = 0
+	event_id = int(row["id"])
+	try:
+		ok = enrich_event_id(conn, event_id)
+	except Exception as e:
+		ok = False
+		err = str(e)[:500]
+	else:
+		err = None
 
-	for r in rows:
-		if enrich_event_id(conn, int(r["id"])):
-			done += 1
-		else:
-			skipped += 1
+	now = int(time.time())
+	if ok:
+		conn.execute("""
+		UPDATE events SET
+			enrichment_status=?,
+			enrichment_last_error=NULL,
+			enriched_at_epoch=?
+		WHERE id=?;
+		""", (ENRICH_COMPLETE, now, event_id))
+		conn.commit()
+		return (1, 0)
 
-	return done, skipped
+	attempts = int(row["enrichment_attempts"]) + 1
+	status = ENRICH_TERMINAL if attempts >= MAX_ENRICH_ATTEMPTS else ENRICH_RETRY
+	next_epoch = 0 if status == ENRICH_TERMINAL else now + _compute_enrich_backoff_seconds(attempts)
+	conn.execute("""
+	UPDATE events SET
+		enrichment_status=?,
+		enrichment_attempts=?,
+		enrichment_next_attempt_epoch=?,
+		enrichment_last_error=?
+	WHERE id=?;
+	""", (status, attempts, next_epoch, err or "enrichment incomplete", event_id))
+	conn.commit()
+	return (0, 1)
 
 
 def print_summary(conn: sqlite3.Connection) -> None:
@@ -584,10 +909,19 @@ def main() -> None:
 	ap.add_argument("--log", default=str(DEFAULT_LOG))
 	ap.add_argument("--db", default=str(DEFAULT_DB))
 	ap.add_argument("--enrich", action="store_true")
+	ap.add_argument("--enrich-one", action="store_true")
 	ap.add_argument("--no-ingest", action="store_true")
 	ap.add_argument("--ingest-stdin", action="store_true")
 	ap.add_argument("--ingest-limit", type=int, default=None)
 	ap.add_argument("--enrich-limit", type=int, default=None)
+	ap.add_argument("--accept-event", choices=["arrive", "leave"])
+	ap.add_argument("--place", default="unnamed")
+	ap.add_argument("--lat", default="")
+	ap.add_argument("--lon", default="")
+	ap.add_argument("--ts", default="")
+	ap.add_argument("--state-file", default=str(DEFAULT_BASE / ".homekit-home-state"))
+	ap.add_argument("--seq-file", default=str(DEFAULT_BASE / ".homekit-home-seq"))
+	ap.add_argument("--last-epoch-file", default=str(DEFAULT_BASE / ".homekit-last-epoch"))
 	ap.add_argument("--quiet", action="store_true")
 	args = ap.parse_args()
 
@@ -597,7 +931,29 @@ def main() -> None:
 	conn = db_connect(db_path)
 	db_init(conn)
 
-	if args.ingest_stdin:
+	if args.accept_event:
+		event_id, inserted, projected = accept_event(
+			conn,
+			args.accept_event,
+			args.place,
+			args.lat,
+			args.lon,
+			args.ts,
+		)
+		if projected and event_id is not None:
+			row = fetch_event(conn, event_id)
+			if row is not None:
+				_write_projection_files(
+					row,
+					log_path,
+					Path(args.state_file).expanduser(),
+					Path(args.seq_file).expanduser(),
+					Path(args.last_epoch_file).expanduser(),
+				)
+		if not args.quiet:
+			print(f"accept-event: event_id={event_id} inserted={int(inserted)} projected={int(projected)}")
+
+	elif args.ingest_stdin:
 		text = sys.stdin.read()
 		lines = [ln for ln in text.splitlines() if ln.strip()]
 		inserted_ids: List[int] = []
@@ -608,8 +964,8 @@ def main() -> None:
 				inserted_ids.append(int(event_id))
 
 		if args.enrich and inserted_ids:
-			for eid in inserted_ids:
-				enrich_event_id(conn, eid)
+			for _ in inserted_ids:
+				enrich_events(conn, limit=1)
 
 		if not args.quiet:
 			print(f"ingest-stdin: lines={len(lines)} inserted={len(inserted_ids)}")
@@ -622,13 +978,23 @@ def main() -> None:
 			if not args.quiet:
 				print(f"ingest: inserted={ins} skipped(existing/bad)={skip}")
 
-		if args.enrich:
+		if args.enrich or args.enrich_one:
 			if Observer is None and not args.quiet:
 				print("enrich: astral not available (is_day/light_pattern will be NULL). Install: python3 -m pip install --user astral", file=sys.stderr)
 			if requests is None and not args.quiet:
 				print("enrich: requests not available (weather_temp_f will be NULL). Install: python3 -m pip install --user requests", file=sys.stderr)
 
-			done, skip = enrich_events(conn, limit=args.enrich_limit)
+			done = 0
+			skip = 0
+			limit = 1 if args.enrich_one else args.enrich_limit
+			if limit is None:
+				limit = 1
+			for _ in range(max(1, int(limit))):
+				d, s = enrich_events(conn, limit=1)
+				done += d
+				skip += s
+				if d == 0 and s == 0:
+					break
 			if not args.quiet:
 				print(f"enrich: updated={done} skipped(bad ts/coords)={skip}")
 

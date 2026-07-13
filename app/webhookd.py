@@ -15,8 +15,8 @@ LISTEN_PORT = int(os.environ.get("WEBHOOK_LISTEN_PORT", "8787"))
 AUTH_TOKEN = os.environ.get("WEBHOOK_TOKEN", "")
 QUEUE_DB = os.environ.get("WEBHOOK_QUEUE_DB", "/opt/presence-relay/var/webhook_queue.sqlite3")
 
-PI_SSH_HOST = os.environ.get("PI_SSH_HOST", "private-automation-host")
-PI_EVENT_SH = os.environ.get("PI_EVENT_SH", "/opt/presence-relay/home-lan-target/event.sh")
+PRIVATE_DELIVERY_HOST = os.environ.get("PRIVATE_DELIVERY_HOST", os.environ.get("PI_SSH_HOST", "private-delivery-host"))
+PRIVATE_EVENT_COMMAND = os.environ.get("PRIVATE_EVENT_COMMAND", os.environ.get("PI_EVENT_SH", "/opt/presence-relay/home-lan-target/event.sh"))
 
 DELIVER_POLL_SECONDS = float(os.environ.get("DELIVER_POLL_SECONDS", "1.0"))
 SSH_CONNECT_TIMEOUT = int(os.environ.get("SSH_CONNECT_TIMEOUT", "3"))
@@ -119,7 +119,7 @@ def _deliver_one(row: sqlite3.Row) -> None:
 		place = "unnamed"
 
 	remote_cmd = (
-		f"{shlex.quote(PI_EVENT_SH)} "
+		f"{shlex.quote(PRIVATE_EVENT_COMMAND)} "
 		f"{shlex.quote(str(event))} "
 		f"{shlex.quote(place)} "
 		f"{shlex.quote(lat)} "
@@ -131,7 +131,7 @@ def _deliver_one(row: sqlite3.Row) -> None:
 		"ssh",
 		"-o", "BatchMode=yes",
 		"-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
-		PI_SSH_HOST,
+		PRIVATE_DELIVERY_HOST,
 		remote_cmd,
 	]
 
@@ -190,15 +190,19 @@ def delivery_worker(stop_event: threading.Event) -> None:
 				SELECT *
 				FROM queue
 				WHERE delivered_at_epoch IS NULL
-				  AND next_attempt_epoch <= ?
 				ORDER BY id ASC
 				LIMIT 1
-			""", (now,)).fetchone()
+			""").fetchone()
 		finally:
 			conn.close()
 
 		if row is None:
 			stop_event.wait(DELIVER_POLL_SECONDS)
+			continue
+
+		if int(row["next_attempt_epoch"]) > now:
+			wait_s = min(DELIVER_POLL_SECONDS, max(0.1, int(row["next_attempt_epoch"]) - now))
+			stop_event.wait(wait_s)
 			continue
 
 		_deliver_one(row)

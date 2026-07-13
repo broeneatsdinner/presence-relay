@@ -12,7 +12,7 @@ They do not depict roadmap features as operational.
 The production architecture separates public ingress from trusted-side
 processing. The public relay authenticates, validates, and queues accepted
 events. The trusted LAN target remains behind the private delivery boundary and
-creates the durable event history.
+commits the raw event before creating derived projections or enrichment.
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,7 @@ flowchart LR
 		webhook["webhook receiver"]
 		auth["authenticate request"]
 		validate["validate event + place"]
-		queue[("durable delivery queue")]
+		queue[("durable delivery queue<br/>strict FIFO")]
 	end
 
 	subgraph boundary["PRIVATE DELIVERY BOUNDARY"]
@@ -33,10 +33,10 @@ flowchart LR
 	end
 
 	subgraph lan["TRUSTED LAN"]
-		eventsh["event.sh processing"]
-		transition["place-state transition"]
-		ingest["ingest_enrich.py"]
-		db[("trusted-side SQLite")]
+		accept["SQLite-first acceptance"]
+		db[("trusted-side SQLite<br/>raw event record")]
+		projections["derived projections<br/>log / state / sequence"]
+		enrich["asynchronous enrichment<br/>one oldest unfinished event"]
 		viewer["local viewer"]
 	end
 
@@ -45,16 +45,17 @@ flowchart LR
 	webhook --> auth
 	auth --> validate
 	validate --> queue
-	queue --> delivery
-	delivery --> eventsh
-	eventsh --> transition
-	transition --> ingest
-	ingest --> db
+	queue -->|"oldest unfinished row"| delivery
+	delivery --> accept
+	accept --> db
+	db --> projections
+	db --> enrich
+	enrich --> db
 	viewer -->|"reads local state"| db
 
 	lan_note["trusted LAN target is not directly exposed publicly"]
-	queue_note["relay validates and queues accepted events"]
-	db_note["durable operational state is created on the trusted side"]
+	queue_note["backing-off head row blocks newer rows"]
+	db_note["raw event acceptance precedes projections"]
 
 	lan_note -.-> lan
 	queue_note -.-> queue
@@ -70,7 +71,7 @@ flowchart LR
 	class shortcut,payload edge
 	class webhook,auth,validate public
 	class delivery boundary
-	class eventsh,transition,ingest,viewer trusted
+	class accept,projections,enrich,viewer trusted
 	class queue,db storage
 	class lan_note,queue_note,db_note note
 ```
@@ -124,9 +125,9 @@ compatibility, but they are not the canonical place-state model.
 ## Local Demo Flow
 
 The deterministic local demo exercises real implemented parsing,
-authentication, place transition, ingestion, SQLite persistence, and viewer
-reader compatibility. It uses a demo-only local adapter where production uses
-the private delivery hop.
+authentication, durable queueing, strict oldest-row delivery, SQLite-first
+acceptance, derived projections, and viewer reader compatibility. It uses a
+demo-only local adapter where production uses the private delivery hop.
 
 ```mermaid
 flowchart LR
@@ -138,19 +139,19 @@ flowchart LR
 	subgraph loopback["LOOPBACK-ONLY LOCAL INGRESS"]
 		webhook["real webhook handler"]
 		auth["real authentication logic"]
-		queue[("webhook queue")]
+		queue[("durable webhook queue")]
 	end
 
 	subgraph adapter["DEMO-ONLY ADAPTER"]
-		drain["drain queued payloads"]
+		drain["deliver oldest unfinished row"]
 		call["invoke trusted-side script locally"]
 	end
 
 	subgraph trusted["REAL TRUSTED-SIDE PROCESSING"]
-		eventsh["event.sh processing"]
-		state["place-state transitions"]
-		ingest["ingest_enrich.py"]
+		eventsh["event.sh"]
+		accept["SQLite-first acceptance"]
 		db[("disposable SQLite<br/>demo/tmp/")]
+		state["derived projections"]
 		viewer["existing viewer reader<br/>compatibility check"]
 	end
 
@@ -161,17 +162,17 @@ flowchart LR
 	queue --> drain
 	drain --> call
 	call --> eventsh
-	eventsh --> state
-	state --> ingest
-	ingest --> db
+	eventsh --> accept
+	accept --> db
+	db --> state
 	viewer -->|"reads generated rows"| db
 
-	note1["production SSH/private-delivery transport is not simulated or claimed"]
-	note2["optional weather lookup disabled for deterministic local execution"]
+	note1["production private-delivery transport is not simulated or claimed"]
+	note2["async enrichment trigger disabled for deterministic local execution"]
 	note3["no live or private infrastructure participates"]
 
 	note1 -.-> adapter
-	note2 -.-> ingest
+	note2 -.-> accept
 	note3 -.-> loopback
 
 	classDef demo fill:#eef6ff,stroke:#5b7fa6,color:#111827
@@ -184,7 +185,7 @@ flowchart LR
 	class json,token public
 	class webhook,auth demo
 	class drain,call boundary
-	class eventsh,state,ingest,viewer trusted
+	class eventsh,accept,state,viewer trusted
 	class queue,db storage
 	class note1,note2,note3 note
 ```

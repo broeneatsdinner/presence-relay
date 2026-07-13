@@ -2,7 +2,8 @@
 # Documentation
 
 This directory contains public-safe architecture, deployment, threat-model,
-sanitization, and roadmap documentation for `presence-relay`.
+sanitization, implemented-status, and roadmap documentation for
+`presence-relay`.
 
 Start here:
 
@@ -21,3 +22,11 @@ Start here:
 Keep private operational inventories, screenshots, raw logs, databases, live
 hostnames, IP addresses, credentials, and exact personal locations out of this
 tracked documentation tree.
+
+Current public framing distinguishes:
+
+- implemented durable public relay delivery and SQLite-first LAN acceptance
+- implemented asynchronous historical environmental enrichment
+- verified operational outcomes described without raw deployment output
+- future route sessions, doorway/geofence correlation, confidence scoring, and
+  recommendations

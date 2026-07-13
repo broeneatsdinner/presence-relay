@@ -1,8 +1,48 @@
 # Context Model
 
-This document defines provider-neutral future contracts for environmental,
-scheduled, and operational context. These contracts are roadmap-only and are not
-implemented yet.
+This document separates implemented historical environmental enrichment from
+provider-neutral future contracts for scheduled, operational, and broader
+context. The environmental enrichment described in the first section is
+implemented; the later context-event and context-observation contracts remain
+roadmap design.
+
+## Implemented Historical Environmental Enrichment
+
+Accepted phone-derived boundary events are enriched asynchronously after the
+raw event has been committed to SQLite and after derived projections are
+complete. Enrichment is not part of mobile acknowledgment and not part of the
+raw acceptance transaction.
+
+The enrichment lifecycle is intentionally sequential:
+
+- select the oldest unfinished accepted event by `events.id ASC`
+- process exactly one event per worker invocation
+- use lifecycle states `pending`, `retry`, `complete`, and `terminal`
+- retry transient failures without allowing newer events to jump ahead
+- use a recovery timer for backlog, missed triggers, reboot recovery, and
+  retry work
+
+The inputs are the accepted event record:
+
+- historical event timestamp
+- stored event coordinates
+- normalized UTC environmental hour
+
+The outputs are historical-time context:
+
+- astronomy calculated for the event's historical time
+- weather selected for the corresponding UTC hour
+- raw numeric environmental values preserved separately from descriptive labels
+
+This is modeled regional context. It is not doorway-local sensor truth, not
+current weather, and not a claim that environmental conditions caused movement
+behavior. Route-level correlation, confidence scoring, learned windows, and
+recommendations remain future work.
+
+## Future Context Contracts
+
+The following contracts define provider-neutral shapes for later context
+expansion. They are not fully implemented yet.
 
 Use two contracts rather than one overloaded table:
 

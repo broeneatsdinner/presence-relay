@@ -11,15 +11,18 @@ fixture data and disposable local state.
 synthetic named-place events
   -> authenticated local webhook handler
     -> local demo delivery adapter
-      -> real trusted-side event processing
-        -> real place-state transitions
-          -> real ingestion and enrichment code
+      -> oldest unfinished queued row
+        -> SQLite-first raw event acceptance
+          -> derived place-state projections
             -> disposable SQLite persistence
               -> existing viewer reader compatibility check
 ```
 
 The local delivery adapter replaces the production SSH hop. It drains the
-authenticated webhook queue and invokes the trusted-side event script directly.
+authenticated webhook queue one oldest unfinished row at a time and invokes the
+trusted-side event script directly. The deterministic demo disables the
+background enrichment trigger so local runs do not depend on timers, network
+providers, or optional astronomy/weather libraries.
 
 ## Requirements
 
@@ -67,6 +70,15 @@ SQLite rows.
 
 ## Boundary
 
+This demo does model:
+
+- authenticated local ingress
+- durable relay queueing before delivery
+- strict oldest-row local delivery
+- SQLite-first raw acceptance
+- duplicate-safe projection behavior for accepted rows
+- viewer compatibility with the accepted-event table
+
 This demo does not run or simulate roadmap functionality:
 
 - route sessions
@@ -76,3 +88,7 @@ This demo does not run or simulate roadmap functionality:
 - inference
 - confidence scoring
 - recommendations
+
+It also does not run the production asynchronous enrichment trigger. The public
+implementation contains the sanitized one-event enrichment worker; the demo
+keeps it disabled for deterministic offline execution.

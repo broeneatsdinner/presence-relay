@@ -9,7 +9,10 @@ This threat model focuses on publication-safe documentation for a real mobile-to
 - WireGuard private keys and peer configuration
 - TLS certificate and ACME account material
 - public relay service configuration
+- public relay durability queue
 - home-side event database and logs
+- derived LAN projections
+- environmental enrichment state
 - raw doorway observations
 - precise location data
 - home LAN addressing and service names
@@ -51,6 +54,40 @@ The physical doorway signal is inside the protected environment. It should use a
 narrow authenticated invocation into local processing, not a new public LAN
 service.
 
+### Queue Reordering Or Delivery Ambiguity
+
+If accepted public relay events can be delivered out of order, downstream state
+may describe a plausible but false history. Retry behavior is especially
+sensitive because a temporarily failing head event must not be hidden by newer
+successful deliveries.
+
+Controls:
+
+- commit accepted relay events to a SQLite durability queue before delivery
+- deliver strictly by durable insertion order
+- make a backing-off head row block newer rows
+- preserve phone timestamps as event facts, not relay queue ordering authority
+- keep retry/backoff behavior across the public/private trust boundary
+- publish queue behavior without publishing queue contents
+
+### Acceptance And Enrichment Coupling
+
+If environmental enrichment is part of event acceptance, provider failure or
+slow context lookup can block the primary security and state function: accepting
+the event. If projections are updated before raw database acceptance, failures
+can produce local state that has no authoritative raw event.
+
+Controls:
+
+- commit the raw event to SQLite before derived projection updates
+- treat logs, state, and sequence material as projections
+- make duplicate events duplicate-safe at the projection layer
+- produce no projection changes after failed database acceptance
+- run enrichment asynchronously after acceptance
+- use oldest-first enrichment lifecycle states for retry and terminal failure
+- describe environmental values as modeled regional context, not local sensor
+  truth
+
 ### Location Disclosure
 
 Raw coordinates, place labels, screenshots, and event logs can reveal sensitive movement patterns.
@@ -88,6 +125,22 @@ Controls:
 - run `tools/audit/sanitize_scan.sh` before committing imports
 - review staged changes before each commit
 - keep backups and runtime state outside the repo
+
+### Operational Verification Leakage
+
+Live verification output can expose the deployment even when the architecture
+language is safe. Command transcripts, service unit names, queue row counts,
+provider responses, database paths, usernames, hostnames, and timestamps can
+become an infrastructure map.
+
+Controls:
+
+- publish verification outcomes rather than raw output
+- use role terms such as public relay, durability queue, protected LAN
+  processing node, asynchronous enrichment, and recovery timer
+- avoid service names, SSH aliases, account names, exact paths, exact event
+  timestamps, database rows, and provider URLs
+- review documentation diffs with the same standard as code and config imports
 
 ## Publication Standard
 

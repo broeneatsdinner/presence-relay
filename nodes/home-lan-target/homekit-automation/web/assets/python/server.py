@@ -84,6 +84,9 @@ def fetch_events(limit: int) -> List[Dict[str, Any]]:
 	place_expr = "'unnamed' AS place"
 	previous_place_expr = "'unnamed' AS previous_place"
 	current_place_expr = "'unnamed' AS current_place"
+	enrichment_status_expr = "NULL AS enrichment_status"
+	environmental_hour_utc_expr = "NULL AS environmental_hour_utc"
+	weather_temp_label_expr = "NULL AS weather_temp_label"
 
 	conn = db_connect()
 	try:
@@ -94,6 +97,12 @@ def fetch_events(limit: int) -> List[Dict[str, Any]]:
 			previous_place_expr = "COALESCE(previous_place, 'unnamed') AS previous_place"
 		if "current_place" in cols:
 			current_place_expr = "COALESCE(current_place, 'unnamed') AS current_place"
+		if "enrichment_status" in cols:
+			enrichment_status_expr = "enrichment_status"
+		if "environmental_hour_utc" in cols:
+			environmental_hour_utc_expr = "environmental_hour_utc"
+		if "weather_temp_label" in cols:
+			weather_temp_label_expr = "weather_temp_label"
 
 		q = f"""
 		SELECT
@@ -114,7 +123,10 @@ def fetch_events(limit: int) -> List[Dict[str, Any]]:
 			version,
 			is_day,
 			light_pattern,
-			weather_temp_f
+			weather_temp_f,
+			{enrichment_status_expr},
+			{environmental_hour_utc_expr},
+			{weather_temp_label_expr}
 		FROM events
 		ORDER BY ts_epoch DESC
 		LIMIT ?

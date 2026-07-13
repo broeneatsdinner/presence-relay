@@ -10,10 +10,13 @@ The place-based state model is implemented, deployed, and verified.
 Verified behavior:
 
 - iPhone Shortcuts send named-place boundary events.
-- The public relay accepts authenticated webhooks and relays accepted events to
-  the trusted LAN target.
-- The trusted LAN target logs, ingests, enriches, stores, and displays events.
+- The public relay accepts authenticated webhooks, durably queues accepted
+  events, and delivers them strict FIFO to the trusted LAN target.
+- The trusted LAN target commits accepted raw events to SQLite before updating
+  derived projections.
 - `previous_place` and `current_place` are recorded for new ingested events.
+- Environmental enrichment is asynchronous and does not block raw event
+  acceptance.
 
 Public-safe verification examples:
 
@@ -128,10 +131,12 @@ inventing transitions after the fact.
 Implemented now:
 
 - authenticated public webhook ingress
+- durable strict-FIFO public relay delivery
 - public relay / trusted LAN target separation
+- SQLite-first raw event acceptance
 - `event + place` payloads
 - `previous_place + current_place` for new ingested events
-- local event enrichment and viewer display
+- asynchronous historical environmental enrichment and viewer display
 
 Roadmap only:
 

@@ -4,7 +4,7 @@
 
 Presence Relay is a real operational system for securely relaying named-place boundary events from a mobile device through a public relay to a trusted LAN target—without exposing internal services directly to the internet.
 
-The system authenticates public ingress, keeps public and private responsibilities separated, models place transitions explicitly, and records enriched events in SQLite for local review.
+The system authenticates public ingress, keeps public and private responsibilities separated, durably queues accepted events before delivery, models place transitions explicitly, and records accepted raw events in SQLite before deriving local projections and enrichment.
 
 A small boundary crossing in the physical world becomes a trusted, durable piece of protected system state.
 
@@ -14,10 +14,11 @@ iPhone Personal Automation
     -> authenticated HTTPS webhook
       -> public relay
         -> private-side delivery path
-          -> trusted LAN target
-            -> logging and enrichment
-              -> SQLite storage
-                -> local viewer
+          -> protected LAN processing node
+            -> SQLite-first acceptance
+              -> derived projections
+                -> asynchronous enrichment
+                  -> local viewer
 ```
 
 The implemented system answers:
@@ -73,7 +74,7 @@ flowchart TB
 
 	subgraph relay["PUBLIC RELAY"]
 		intake["Webhook receiver<br/>Authentication + validation"]
-		queue[("Delivery queue")]
+		queue[("Durability queue<br/>strict FIFO")]
 
 		intake --> queue
 	end
@@ -83,19 +84,20 @@ flowchart TB
 	end
 
 	subgraph lan["TRUSTED LAN"]
-		processing["Event processing<br/>Place-state transition"]
-		enrichment["Ingestion + enrichment"]
-		db[("SQLite")]
+		db[("SQLite<br/>Raw event record")]
+		projections["Derived projections<br/>Log / state / sequence"]
+		enrichment["Asynchronous enrichment"]
 		viewer["Local viewer"]
 
-		processing --> enrichment
+		db --> projections
+		db -->|"oldest unfinished event"| enrichment
 		enrichment --> db
 		viewer -->|"reads"| db
 	end
 
 	shortcut -->|"authenticated HTTPS"| intake
-	queue -->|"VPN-protected delivery"| delivery
-	delivery -->|"LAN delivery"| processing
+	queue -->|"oldest unfinished event first"| delivery
+	delivery -->|"authenticated private-side delivery"| db
 ```
 
 ### Security properties
@@ -109,7 +111,9 @@ The architecture is designed to avoid:
 - public storage of live credentials or movement history
 - treating a public Git repository as a copy of the live system
 
-The public relay and trusted LAN target have deliberately different responsibilities. The public side accepts and validates a narrowly defined event. The private side performs local processing, persistence, and review.
+The public relay and protected LAN processing node have deliberately different responsibilities. The public side accepts and validates a narrowly defined event, commits it to a SQLite durability queue, and delivers queued rows across the public/private trust boundary in strict FIFO order by durable relay insertion. A backing-off head row blocks newer rows; phone timestamps are preserved as event facts but do not decide relay queue order.
+
+The protected LAN side treats SQLite as the authoritative system of record for accepted raw events. Log, state, and sequence material are derived projections after database acceptance. Duplicate events do not duplicate those projections, and a failed database acceptance produces no projection changes. Environmental enrichment is asynchronous and outside the raw acceptance transaction.
 
 This is not merely a webhook script. It is a trust-boundary design.
 
@@ -123,21 +127,28 @@ trust-boundary, place-state, and local-demo diagrams.
 The current system includes:
 
 - authenticated mobile webhook delivery
+- SQLite durability queue before public relay delivery
+- strict FIFO public relay delivery by durable insertion order
 - public relay and trusted-LAN separation
+- authenticated retry/backoff across the public/private trust boundary
 - private-side event delivery
 - named-place boundary events
 - explicit place-state transitions
 - physical doorway observations
 - narrow local recording of raw doorway events
-- local logging and enrichment
-- SQLite persistence
+- SQLite-first raw event acceptance on the protected LAN processing node
+- duplicate-safe derived log, state, and sequence projections
+- asynchronous environmental enrichment
+- oldest-first enrichment lifecycle with retry and terminal states
+- historical-time daylight and weather modeling
+- SQLite persistence as the accepted-event system of record
 - a local event viewer
 - read-only operator visibility for recent doorway observations
 - backward-compatible legacy fields
 - sanitized deployment templates and examples
 - public-release audit and sanitization tooling
 
-The operational system has been exercised with real authenticated mobile boundary events; the public repository preserves that architecture while substituting sanitized configuration, synthetic data, and public reference geography.
+The operational system has been exercised with real authenticated mobile boundary events and live operational verification. The public relay restarted successfully with strict FIFO delivery in place, the relay durability queue was healthy at deployment, the LAN database migration completed with integrity intact, historical environmental enrichment completed from stored event time and normalized UTC hour, the asynchronous enrichment service completed successfully, the recovery timer is active, and pending historical enrichment work is draining oldest-first. The public repository preserves that architecture while substituting sanitized configuration, synthetic data, and public reference geography.
 
 ---
 
@@ -222,10 +233,12 @@ A typical implemented event follows this path:
 2. A reusable Shortcut sends a small authenticated JSON payload.
 3. The public relay validates the request.
 4. The event crosses the configured private-side delivery path.
-5. The trusted LAN target processes the transition.
-6. The event is logged and enriched.
-7. Structured data is stored in SQLite.
-8. The local viewer presents the resulting event history.
+5. The public relay commits the accepted event to a SQLite durability queue.
+6. The delivery worker sends the oldest unfinished queue row across the public/private trust boundary, with retry and backoff.
+7. The protected LAN processing node commits the raw event to SQLite.
+8. Derived log, state, and sequence projections are updated only after database acceptance.
+9. A nonblocking enrichment trigger starts best-effort historical context work.
+10. The local viewer presents the resulting accepted events and completed projections.
 ```
 
 Example payload:
@@ -274,10 +287,10 @@ It exercises the implemented flow with disposable local state:
 synthetic named-place payloads
   -> authenticated local webhook
     -> local demo delivery adapter
-    -> place-state transition
-      -> ingestion and enrichment
-        -> disposable SQLite database
-          -> local viewer
+      -> place-state transition
+        -> SQLite persistence
+          -> disposable projections
+            -> local viewer
 ```
 
 The demo uses public Chicago fixtures, a clearly labeled non-secret demo token,
@@ -305,15 +318,20 @@ public fixture data.
 
 | Area | Status |
 | --- | --- |
-| Authenticated event relay | Implemented |
+| Authenticated event relay | Implemented and live-verified |
+| SQLite durability queue before relay delivery | Implemented and live-verified |
+| Strict FIFO public relay delivery | Implemented and live-verified |
 | Public/private trust-boundary separation | Implemented |
 | Named-place event model | Implemented |
 | Place-state transitions | Implemented |
 | Physical doorway observations | Implemented |
-| Logging and enrichment | Implemented |
-| Weather enrichment | Implemented |
-| Daylight and light-pattern enrichment | Implemented |
-| SQLite storage | Implemented |
+| SQLite-first LAN raw event acceptance | Implemented and live-verified |
+| Duplicate-safe derived projections | Implemented |
+| Asynchronous enrichment trigger and recovery timer | Implemented and live-verified |
+| Oldest-first enrichment lifecycle | Implemented and live-verified |
+| Historical weather enrichment | Implemented and live-verified |
+| Historical daylight and light-pattern enrichment | Implemented and live-verified |
+| SQLite accepted-event storage | Implemented and live-verified |
 | Local viewer | Implemented |
 | Route-session lifecycle | Designed |
 | Doorway/geofence temporal correlation | Designed |
@@ -419,7 +437,11 @@ See [Doorway Observations](docs/doorway-observations.md).
 
 ## Context and Explainability
 
-Potential context sources include:
+Implemented environmental context is intentionally narrow. After the raw event has been accepted and its projections are complete, enrichment runs asynchronously against the accepted SQLite record. It selects the oldest unfinished event, uses the event's stored historical timestamp and stored coordinates, preserves the normalized UTC environmental hour, calculates astronomy for that historical time, and selects weather for the corresponding UTC hour.
+
+Environmental values are modeled regional context, not doorway-local sensor truth. Raw numeric values remain separate from descriptive labels so later presentation can change without rewriting the observed record.
+
+Potential future context sources include:
 
 - weather, daylight, and air quality
 - temperature, wind, snow, and ice
@@ -437,7 +459,7 @@ confidence
 causality
 ```
 
-A weak signal should not be presented as proof. A future result may reasonably say:
+A weak signal should not be presented as proof. Implemented enrichment records historical environmental context; it does not perform route-level correlation, confidence scoring, or recommendations. A future result may reasonably say:
 
 > Similar sessions under these conditions were slightly slower. The observed relationship is correlational, the sample size is limited, and confidence is moderate.
 
@@ -481,11 +503,14 @@ Presence Relay demonstrates:
 
 - trust-boundary security architecture and attack-surface reduction
 - authenticated mobile event delivery across deliberately separated public and private responsibilities
+- durable strict-FIFO relay delivery with retry/backoff behavior
+- SQLite-first raw acceptance and projection discipline
+- asynchronous enrichment with recovery behavior and failure isolation
 - independent phone-derived and physical-boundary observation streams
 - Linux service operation, shell tooling, and private-network integration
 - explicit event and state modeling
 - schema evolution and backward compatibility
-- SQLite ingestion, enrichment, persistence, and local review
+- historical-time environmental modeling, persistence, and local review
 - threat modeling, OPSEC-aware publication, and reproducible sanitization
 - iterative redesign grounded in operational verification
 
