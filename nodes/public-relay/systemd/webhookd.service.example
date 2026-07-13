@@ -1,5 +1,5 @@
 [Unit]
-Description=webhookd (HomeKit geofence bridge)
+Description=webhookd (Presence Relay geofence bridge)
 After=network-online.target
 Wants=network-online.target
 

@@ -22,7 +22,7 @@ flowchart LR
 	end
 
 	subgraph relay["PUBLIC RELAY"]
-		webhook["webhook receiver"]
+		webhook["webhook receiver<br/>/hook/presence"]
 		auth["authenticate request"]
 		validate["validate event + place"]
 		queue[("durable delivery queue<br/>strict FIFO")]
@@ -33,9 +33,9 @@ flowchart LR
 	end
 
 	subgraph lan["TRUSTED LAN"]
-		accept["SQLite-first acceptance"]
-		db[("trusted-side SQLite<br/>raw event record")]
-		projections["derived projections<br/>log / state / sequence"]
+		accept["presence-relay acceptance"]
+		db[("presence.sqlite<br/>raw event record")]
+		projections["derived projections<br/>.presence-* files"]
 		enrich["asynchronous enrichment<br/>one oldest unfinished event"]
 		viewer["local viewer"]
 	end
@@ -78,7 +78,8 @@ flowchart LR
 
 Accuracy note: this is the production trust model. It intentionally omits real
 hostnames, addresses, private topology, credentials, and roadmap inference
-features.
+features. `/hook/homekit` is only a temporary migration compatibility alias and
+is not shown as the canonical route.
 
 ## Place-State Transitions
 
@@ -137,7 +138,7 @@ flowchart LR
 	end
 
 	subgraph loopback["LOOPBACK-ONLY LOCAL INGRESS"]
-		webhook["real webhook handler"]
+		webhook["real webhook handler<br/>/hook/presence"]
 		auth["real authentication logic"]
 		queue[("durable webhook queue")]
 	end
@@ -150,7 +151,7 @@ flowchart LR
 	subgraph trusted["REAL TRUSTED-SIDE PROCESSING"]
 		eventsh["event.sh"]
 		accept["SQLite-first acceptance"]
-		db[("disposable SQLite<br/>demo/tmp/")]
+		db[("disposable presence.sqlite<br/>demo/tmp/")]
 		state["derived projections"]
 		viewer["existing viewer reader<br/>compatibility check"]
 	end

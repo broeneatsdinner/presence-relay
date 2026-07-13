@@ -11,7 +11,8 @@ app/                       sanitized relay application code
 clients/iphone-shortcuts/  sanitized iPhone Shortcut documentation and export notes
 examples/payloads/         fake JSON payload examples
 nodes/public-relay/        sanitized public relay service configuration
-nodes/home-lan-target/     sanitized trusted LAN automation code and viewer assets
+nodes/home-lan-target/presence-relay/
+                            sanitized trusted LAN runtime code and viewer assets
 tools/audit/               local audit tools for import and publication review
 ```
 
@@ -23,7 +24,7 @@ tools/audit/               local audit tools for import and publication review
 | Public relay app | `app/webhookd.py` | `/opt/presence-relay/app/webhookd.py` | Relay application binds to localhost by default and expects a reverse proxy. |
 | Public relay config | `nodes/public-relay/systemd/` | systemd unit directory | Use sanitized service templates only. |
 | Public relay proxy | `nodes/public-relay/lighttpd/` | reverse-proxy route fragment | Use sanitized route/proxy fragments only. |
-| Trusted LAN target | `nodes/home-lan-target/` | `/opt/presence-relay/home-lan-target/` | Automation, ingest/enrich code, and local viewer assets. |
+| Trusted LAN target | `nodes/home-lan-target/presence-relay/` | `/opt/presence-relay/home-lan-target/presence-relay/` | Canonical LAN runtime code, ingest/enrich code, active projections, `presence.sqlite`, and local viewer assets. |
 
 ## Deployment Principle
 
@@ -38,6 +39,10 @@ Implemented deployment behavior is described at the role level:
   across the public/private trust boundary
 - the protected LAN processing node commits the raw event to SQLite before
   updating derived projections
+- the canonical public webhook route is `/hook/presence`; `/hook/homekit`
+  remains only as a temporary migration compatibility alias
+- the canonical LAN runtime name is `presence-relay`; old runtime paths should
+  be described only as compatibility links during migration
 - enrichment is asynchronous and recovery-driven; event acceptance and mobile
   acknowledgment do not wait for environmental context
 
@@ -50,11 +55,16 @@ exact database paths, provider URLs, command output, or runtime row contents.
 The live system has been verified after the latest architecture changes:
 
 - public relay service restart completed with strict FIFO delivery in place
+- iOS Shortcut delivery to `/hook/presence` completed end-to-end
 - relay durability queue was healthy at deployment
 - protected LAN database migration completed with integrity intact
+- event insertion into `presence.sqlite` completed
 - historical event enrichment completed using the stored event time and UTC
   environmental hour
 - asynchronous enrichment completed successfully
+- presence state and sequence projections updated correctly
+- Aqara Button A recorded an independent doorway observation without altering
+  the geofence sequence
 - recovery timer behavior is enabled and active
 - pending historical enrichment rows are draining oldest-first
 

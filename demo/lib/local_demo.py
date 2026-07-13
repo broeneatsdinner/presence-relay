@@ -121,7 +121,7 @@ def viewer_check(repo_root: Path, db_path: Path) -> None:
 	os.environ["COMEANDGO_DB"] = str(db_path)
 	viewer = load_module(
 		"presence_relay_viewer",
-		repo_root / "nodes/home-lan-target/homekit-automation/web/assets/python/server.py",
+		repo_root / "nodes/home-lan-target/presence-relay/web/assets/python/server.py",
 	)
 	events = viewer.fetch_events(10)
 	if len(events) != 2:

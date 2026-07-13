@@ -16,7 +16,7 @@ AUTH_TOKEN = os.environ.get("WEBHOOK_TOKEN", "")
 QUEUE_DB = os.environ.get("WEBHOOK_QUEUE_DB", "/opt/presence-relay/var/webhook_queue.sqlite3")
 
 PRIVATE_DELIVERY_HOST = os.environ.get("PRIVATE_DELIVERY_HOST", os.environ.get("PI_SSH_HOST", "private-delivery-host"))
-PRIVATE_EVENT_COMMAND = os.environ.get("PRIVATE_EVENT_COMMAND", os.environ.get("PI_EVENT_SH", "/opt/presence-relay/home-lan-target/event.sh"))
+PRIVATE_EVENT_COMMAND = os.environ.get("PRIVATE_EVENT_COMMAND", os.environ.get("PI_EVENT_SH", "/opt/presence-relay/home-lan-target/presence-relay/event.sh"))
 
 DELIVER_POLL_SECONDS = float(os.environ.get("DELIVER_POLL_SECONDS", "1.0"))
 SSH_CONNECT_TIMEOUT = int(os.environ.get("SSH_CONNECT_TIMEOUT", "3"))
@@ -218,7 +218,9 @@ class Handler(BaseHTTPRequestHandler):
 
 	def do_POST(self) -> None:
 		parsed = urlparse(self.path)
-		if parsed.path != "/hook/homekit":
+		# /hook/presence is canonical. /hook/homekit remains a temporary
+		# migration compatibility alias for older clients.
+		if parsed.path not in ("/hook/presence", "/hook/homekit"):
 			self._send(404, "not found")
 			return
 

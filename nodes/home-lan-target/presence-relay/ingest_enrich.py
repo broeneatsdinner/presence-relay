@@ -4,7 +4,7 @@
 ingest_enrich.py
 
 Purpose
-- Ingest ~/homekit-automation/automation.log (whitespace-delimited lines; tabs are fine)
+- Ingest ~/presence-relay/automation.log (whitespace-delimited lines; tabs are fine)
 - Accept raw event records into SQLite before derived projections are emitted
 - Store compatibility fields for the local viewer
 - Optionally enrich one oldest unfinished event with ONLY:
@@ -17,22 +17,22 @@ Deps (Pi)
 
 Usage
 - Ingest only:
-	python3 ~/homekit-automation/ingest_enrich.py
+	python3 ~/presence-relay/ingest_enrich.py
 
 - Ingest + enrich:
-	python3 ~/homekit-automation/ingest_enrich.py --enrich
+	python3 ~/presence-relay/ingest_enrich.py --enrich
 
 - Enrich only:
-	python3 ~/homekit-automation/ingest_enrich.py --no-ingest --enrich
+	python3 ~/presence-relay/ingest_enrich.py --no-ingest --enrich
 
 - Ingest+enrich lines from stdin (used by event.sh):
-	echo "..." | python3 ~/homekit-automation/ingest_enrich.py --enrich --ingest-stdin
+	echo "..." | python3 ~/presence-relay/ingest_enrich.py --enrich --ingest-stdin
 
 - Accept a single event and emit projections only after the row commits:
-	python3 ~/homekit-automation/ingest_enrich.py --accept-event leave --place example-place --lat 0 --lon 0 --ts 2026-01-01T08:00:00Z
+	python3 ~/presence-relay/ingest_enrich.py --accept-event leave --place example-place --lat 0 --lon 0 --ts 2026-01-01T08:00:00Z
 
 - Disable only the optional weather lookup:
-	PRESENCE_RELAY_DISABLE_WEATHER=1 python3 ~/homekit-automation/ingest_enrich.py --enrich
+	PRESENCE_RELAY_DISABLE_WEATHER=1 python3 ~/presence-relay/ingest_enrich.py --enrich
 """
 
 import argparse
@@ -59,9 +59,9 @@ except Exception:
 	sun_times = None
 
 
-DEFAULT_BASE = Path.home() / "homekit-automation"
+DEFAULT_BASE = Path.home() / "presence-relay"
 DEFAULT_LOG = DEFAULT_BASE / "automation.log"
-DEFAULT_DB = DEFAULT_BASE / "db" / "homekit.sqlite"
+DEFAULT_DB = DEFAULT_BASE / "db" / "presence.sqlite"
 ENRICH_PENDING = "pending"
 ENRICH_RETRY = "retry"
 ENRICH_COMPLETE = "complete"
@@ -919,9 +919,9 @@ def main() -> None:
 	ap.add_argument("--lat", default="")
 	ap.add_argument("--lon", default="")
 	ap.add_argument("--ts", default="")
-	ap.add_argument("--state-file", default=str(DEFAULT_BASE / ".homekit-home-state"))
-	ap.add_argument("--seq-file", default=str(DEFAULT_BASE / ".homekit-home-seq"))
-	ap.add_argument("--last-epoch-file", default=str(DEFAULT_BASE / ".homekit-last-epoch"))
+	ap.add_argument("--state-file", default=str(DEFAULT_BASE / ".presence-home-state"))
+	ap.add_argument("--seq-file", default=str(DEFAULT_BASE / ".presence-home-seq"))
+	ap.add_argument("--last-epoch-file", default=str(DEFAULT_BASE / ".presence-last-epoch"))
 	ap.add_argument("--quiet", action="store_true")
 	args = ap.parse_args()
 

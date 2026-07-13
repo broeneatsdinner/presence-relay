@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, parse_qs
 
-BASE = Path.home() / "homekit-automation" / "web"
+BASE = Path.home() / "presence-relay" / "web"
 ASSETS_DIR = BASE / "assets"
 
-DB_PATH = Path(os.environ.get("COMEANDGO_DB", str(Path.home() / "homekit-automation" / "db" / "homekit.sqlite")))
+DB_PATH = Path(os.environ.get("COMEANDGO_DB", str(Path.home() / "presence-relay" / "db" / "presence.sqlite")))
 LISTEN_HOST = os.environ.get("COMEANDGO_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("COMEANDGO_PORT", "8002"))
 

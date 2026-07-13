@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DB="${COMEANDGO_DB:-/opt/presence-relay/home-lan-target/db/homekit.sqlite}"
+DB="${COMEANDGO_DB:-/opt/presence-relay/home-lan-target/presence-relay/db/presence.sqlite}"
 HOST="${COMEANDGO_HOST:-127.0.0.1}"
 PORT="8001"
 

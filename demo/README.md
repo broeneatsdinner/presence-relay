@@ -9,12 +9,12 @@ fixture data and disposable local state.
 
 ```text
 synthetic named-place events
-  -> authenticated local webhook handler
+  -> authenticated local webhook handler at /hook/presence
     -> local demo delivery adapter
       -> oldest unfinished queued row
         -> SQLite-first raw event acceptance
           -> derived place-state projections
-            -> disposable SQLite persistence
+            -> disposable presence.sqlite persistence
               -> existing viewer reader compatibility check
 ```
 

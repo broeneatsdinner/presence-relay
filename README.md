@@ -14,7 +14,7 @@ iPhone Personal Automation
     -> authenticated HTTPS webhook
       -> public relay
         -> private-side delivery path
-          -> protected LAN processing node
+          -> protected LAN presence-relay node
             -> SQLite-first acceptance
               -> derived projections
                 -> asynchronous enrichment
@@ -114,6 +114,12 @@ The architecture is designed to avoid:
 The public relay and protected LAN processing node have deliberately different responsibilities. The public side accepts and validates a narrowly defined event, commits it to a SQLite durability queue, and delivers queued rows across the public/private trust boundary in strict FIFO order by durable relay insertion. A backing-off head row blocks newer rows; phone timestamps are preserved as event facts but do not decide relay queue order.
 
 The protected LAN side treats SQLite as the authoritative system of record for accepted raw events. Log, state, and sequence material are derived projections after database acceptance. Duplicate events do not duplicate those projections, and a failed database acceptance produces no projection changes. Environmental enrichment is asynchronous and outside the raw acceptance transaction.
+
+The canonical public webhook route is `/hook/presence`. `/hook/homekit` is
+retained only as a temporary migration compatibility alias for older clients.
+The protected LAN runtime is canonically `presence-relay`; an old
+`homekit-automation` path may exist in deployed systems only as a compatibility
+link during migration.
 
 This is not merely a webhook script. It is a trust-boundary design.
 
@@ -265,7 +271,8 @@ clients/iphone-shortcuts/  Sanitized iPhone Shortcut documentation
 docs/                      Architecture, models, threat analysis, and deployment notes
 examples/                  Public-safe payload, observation, route, context, and inference fixtures
 nodes/public-relay/        Public relay deployment templates
-nodes/home-lan-target/     Trusted LAN-side processing and viewer components
+nodes/home-lan-target/presence-relay/
+                            Trusted LAN-side processing and viewer components
 tools/audit/               Public-release and sanitization checks
 ```
 
@@ -404,11 +411,11 @@ Presence Relay now combines phone-derived geofence observations with a quiet
 physical observation point at the doorway boundary.
 
 ```text
-physical doorway press
+physical doorway press from Aqara Button A
   -> home automation
   -> authenticated invocation
   -> narrow recorder
-  -> raw observation store
+  -> doorway_events row in presence.sqlite
   -> later correlation with geofence transitions
 ```
 

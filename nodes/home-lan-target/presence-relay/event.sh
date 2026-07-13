@@ -13,8 +13,8 @@ set -euo pipefail
 #
 # v5 (webhook transport bridge; no-VPN-needed delivery from phone to home LAN target):
 # - iPhone Shortcut POSTs JSON to a public HTTPS endpoint on the public relay:
-#   /hook/homekit
-# - lighttpd reverse-proxies /hook/homekit to a local python webhook daemon (webhookd)
+#   /hook/presence
+# - lighttpd reverse-proxies /hook/presence to a local python webhook daemon (webhookd)
 #   listening on 127.0.0.1:8787.
 # - webhookd validates X-Auth-Token and then relays the event to the home LAN target
 #   over the configured private-side delivery path, invoking this script with:
@@ -29,14 +29,17 @@ set -euo pipefail
 #   acceptance record.
 # - enrichment is triggered best-effort after acceptance and does not block this invocation.
 #
+# Compatibility note: /hook/homekit and ~/homekit-automation may temporarily
+# exist as migration aliases, but they are not canonical.
+#
 # Change date: 2026-01-14
 # ------------------------------------------------------------------------------
 
-BASE="$HOME/homekit-automation"
+BASE="$HOME/presence-relay"
 LOG="$BASE/automation.log"
-STATE_FILE="$BASE/.homekit-home-state"
-SEQ_FILE="$BASE/.homekit-home-seq"
-LAST_EPOCH_FILE="$BASE/.homekit-last-epoch"
+STATE_FILE="$BASE/.presence-home-state"
+SEQ_FILE="$BASE/.presence-home-seq"
+LAST_EPOCH_FILE="$BASE/.presence-last-epoch"
 LOCK_FILE="$BASE/db/.ingest.lock"
 
 event="${1:-}"
@@ -143,7 +146,7 @@ process_event() {
 	# SQLite acceptance is authoritative. Log/state/sequence files are projections
 	# emitted by ingest_enrich.py only after the raw row commits.
 	python3 "$BASE/ingest_enrich.py" \
-		--db "$BASE/db/homekit.sqlite" \
+		--db "$BASE/db/presence.sqlite" \
 		--log "$LOG" \
 		--state-file "$STATE_FILE" \
 		--seq-file "$SEQ_FILE" \
@@ -158,7 +161,7 @@ process_event() {
 	if [[ "${PRESENCE_RELAY_DISABLE_ASYNC_ENRICH:-0}" != "1" ]]; then
 		(
 			python3 "$BASE/ingest_enrich.py" \
-				--db "$BASE/db/homekit.sqlite" \
+				--db "$BASE/db/presence.sqlite" \
 				--no-ingest \
 				--enrich-one \
 				--quiet

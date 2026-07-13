@@ -4,16 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 TMP_DIR="$ROOT/demo/tmp"
 DEMO_HOME="$TMP_DIR/home"
-BASE="$DEMO_HOME/homekit-automation"
+BASE="$DEMO_HOME/presence-relay"
 QUEUE_DB="$TMP_DIR/webhook_queue.sqlite3"
 READY_FILE="$TMP_DIR/ingress.ready"
 PID_FILE="$TMP_DIR/ingress.pid"
 INGRESS_LOG="$TMP_DIR/ingress.log"
 ADAPTER_LOG="$TMP_DIR/adapter.log"
-DB="$BASE/db/homekit.sqlite"
+DB="$BASE/db/presence.sqlite"
 HELPER="$ROOT/demo/lib/local_demo.py"
-EVENT_SH="$ROOT/nodes/home-lan-target/homekit-automation/event.sh"
-INGEST="$ROOT/nodes/home-lan-target/homekit-automation/ingest_enrich.py"
+EVENT_SH="$ROOT/nodes/home-lan-target/presence-relay/event.sh"
+INGEST="$ROOT/nodes/home-lan-target/presence-relay/ingest_enrich.py"
 DEMO_TOKEN="presence-relay-demo-token"
 HOST="127.0.0.1"
 PORT="18787"
@@ -71,7 +71,7 @@ fi
 
 echo "[3/6] Sending leave event: sheridan-plaza"
 curl -fsS -o "$TMP_DIR/leave.response" \
-	-X POST "http://$HOST:$PORT/hook/homekit" \
+	-X POST "http://$HOST:$PORT/hook/presence" \
 	-H "Content-Type: application/json" \
 	-H "X-Auth-Token: $DEMO_TOKEN" \
 	--data-binary "@$ROOT/demo/fixtures/leave-sheridan-plaza.json"
@@ -79,7 +79,7 @@ python3 "$HELPER" deliver "$QUEUE_DB" "$DEMO_HOME" "$EVENT_SH" "$ADAPTER_LOG"
 
 echo "[4/6] Sending arrive event: kilmer-elementary"
 curl -fsS -o "$TMP_DIR/arrive.response" \
-	-X POST "http://$HOST:$PORT/hook/homekit" \
+	-X POST "http://$HOST:$PORT/hook/presence" \
 	-H "Content-Type: application/json" \
 	-H "X-Auth-Token: $DEMO_TOKEN" \
 	--data-binary "@$ROOT/demo/fixtures/arrive-kilmer-elementary.json"

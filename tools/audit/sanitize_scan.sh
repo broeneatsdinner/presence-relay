@@ -128,7 +128,7 @@ is_public_safe_ip_context() {
 	local line="$3"
 
 	case "$path:$ip" in
-		nodes/home-lan-target/homekit-automation/web/runserver.sh:1.1.1.1)
+		nodes/home-lan-target/presence-relay/web/runserver.sh:1.1.1.1)
 			[[ "$line" == *"ip route get"* ]]
 			;;
 		*) return 1 ;;
@@ -141,7 +141,7 @@ is_public_safe_domain_context() {
 	local line="$3"
 
 	case "$path:$domain" in
-		nodes/home-lan-target/homekit-automation/ingest_enrich.py:archive-api.open-meteo.com)
+		nodes/home-lan-target/presence-relay/ingest_enrich.py:archive-api.open-meteo.com)
 			[[ "$line" == *"https://archive-api.open-meteo.com/v1/archive"* ]]
 			;;
 		*) return 1 ;;

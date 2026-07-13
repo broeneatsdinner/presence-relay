@@ -6,18 +6,19 @@ them or silently manufacturing movement state.
 
 ![Doorway observation button installed beside the doorway boundary](../assets/photos/doorway-observation-installed.jpg)
 
-The installed button is a quiet physical observation point at the doorway
-boundary. It makes the environment carry a small procedural cue while keeping
-the observation separate from interpretation.
+The installed Aqara Button A is the live doorway-presence observation trigger.
+It is a quiet physical observation point at the doorway boundary. It makes the
+environment carry a small procedural cue while keeping the observation separate
+from interpretation.
 
 The implemented path is deliberately narrow:
 
 ```text
-physical doorway press
+physical doorway press from Aqara Button A
   -> home automation
   -> authenticated invocation
   -> narrow recorder
-  -> raw observation store
+  -> doorway_events row in presence.sqlite
   -> read-only operator query
 ```
 
@@ -34,11 +35,11 @@ physical doorway press
 
 Implemented and verified:
 
-- physical doorway button at the doorway boundary
+- Aqara Button A at the doorway boundary
 - home automation trigger
 - authenticated invocation into trusted local processing
 - narrow recorder
-- raw SQLite persistence
+- raw SQLite persistence in `presence.sqlite`
 - read-only operator visibility
 
 Not implemented yet:

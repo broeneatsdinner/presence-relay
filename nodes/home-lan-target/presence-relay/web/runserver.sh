@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="$HOME/homekit-automation"
+BASE="$HOME/presence-relay"
 WEB="$BASE/web"
 
 PORT="${COMEANDGO_PORT:-8002}"
@@ -16,7 +16,7 @@ if [[ -z "${ip:-}" ]]; then
 fi
 
 echo "presence-relay web viewer"
-echo "  db:   $BASE/db/homekit.sqlite"
+echo "  db:   $BASE/db/presence.sqlite"
 echo "  url:  http://${ip}:${PORT}/"
 echo
 

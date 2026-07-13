@@ -8,7 +8,7 @@ without exposing LAN services directly to the public internet.
 ```text
 iPhone Shortcuts / Personal Automations
 	|
-	| authenticated HTTPS webhook
+	| authenticated HTTPS webhook to /hook/presence
 	v
 Public relay
 	|
@@ -16,7 +16,7 @@ Public relay
 	v
 Trusted LAN target
 	|
-	| SQLite-first acceptance, projections, asynchronous enrichment, and viewer
+	| presence.sqlite acceptance, .presence-* projections, enrichment, and viewer
 	v
 Trusted LAN resources
 ```
@@ -28,6 +28,9 @@ order. The worker selects the oldest unfinished row; if that head row is in
 backoff, newer rows wait behind it rather than leapfrogging. Phone-provided
 timestamps are preserved as event facts, but they do not determine relay queue
 order.
+
+`/hook/presence` is the canonical public webhook route. `/hook/homekit` is a
+temporary migration compatibility alias, not the active architecture.
 
 Delivery retries cross the public/private trust boundary through the configured
 private-side path. Backoff is a failure-isolation mechanism: accepted events are
@@ -53,14 +56,14 @@ The system also records physical doorway observations at the doorway boundary.
 Those observations are intentionally raw facts, not geofence transitions:
 
 ```text
-physical doorway press
+physical doorway press from Aqara Button A
 	|
 	| home automation and authenticated invocation
 	v
 narrow recorder
 	|
 	v
-local SQLite raw observation
+doorway_events row in presence.sqlite
 ```
 
 A doorway observation asks whether the button was pressed and when. It does not
@@ -75,6 +78,12 @@ See [Doorway Observations](doorway-observations.md).
 The protected LAN processing node treats SQLite as authoritative for accepted
 raw events. The raw event record is committed before downstream material is
 updated.
+
+The canonical protected-LAN runtime is `presence-relay`, with public-safe code
+under `nodes/home-lan-target/presence-relay`. The authoritative LAN database is
+`presence.sqlite`, and active file projections use `.presence-home-state`,
+`.presence-home-seq`, and `.presence-last-epoch`. Any old
+`homekit-automation` runtime path is a migration compatibility link only.
 
 Implemented acceptance behavior:
 
@@ -205,10 +214,15 @@ The implemented architecture has been verified in live operation without
 publishing private deployment output. Verification covered:
 
 - public relay restart with strict FIFO delivery in place
+- iOS Shortcut post to `/hook/presence`
 - healthy relay durability queue at deployment
 - protected LAN database migration with integrity intact
+- insertion into `presence.sqlite`
 - historical event enrichment using stored event time and corresponding UTC hour
 - successful asynchronous enrichment service completion
+- presence state and sequence projection updates
+- independent doorway observation recording without changing the geofence
+  sequence
 - active recovery timer behavior
 - pending historical rows draining oldest-first
 
