@@ -53,10 +53,10 @@ Place-state fields use only place vocabulary:
 See [Place State](place-state.md) for the canonical model and migration notes.
 
 The system also records physical doorway observations at the doorway boundary.
-Those observations are intentionally raw facts, not geofence transitions:
+Those observations remain intentionally raw facts, not geofence transitions:
 
 ```text
-physical doorway press from Aqara Button A
+physical doorway press
 	|
 	| home automation and authenticated invocation
 	v
@@ -68,8 +68,10 @@ doorway_events row in presence.sqlite
 
 A doorway observation asks whether the button was pressed and when. It does not
 infer arrival, departure, journey direction, occupancy, confidence, or causality.
-Later correlation with phone-derived geofence transitions is designed but not
-implemented.
+Private read-only operator tooling now correlates these rows with home-geofence
+transitions through bounded, non-overlapping event windows. The raw rows remain
+unchanged, unmatched anchors remain visible, and a match is not presented as
+proof of causality.
 
 See [Doorway Observations](doorway-observations.md).
 
@@ -187,7 +189,9 @@ provider failure, retry delay, or backlog does not block event acceptance.
 The physical doorway signal originates inside this protected environment. It
 uses a narrow authenticated invocation into local processing and writes a raw
 observation locally; no LAN service is exposed to the public internet merely to
-support the button.
+support the button. Read-only operator views query the independent doorway and
+geofence streams after insertion. Human-readable tables use Unicode box drawing,
+while the established JSON surface remains machine-readable.
 
 Sensitive material:
 
@@ -223,9 +227,13 @@ publishing private deployment output. Verification covered:
 - presence state and sequence projection updates
 - independent doorway observation recording without changing the geofence
   sequence
+- focused and full-suite verification of the private operator CLI
+- private CLI help, Python compilation, and whitespace checks
+- live arrival-correlation output checked against the operational database
 - active recovery timer behavior
 - pending historical rows draining oldest-first
 
 Exact command output, timestamps, hostnames, service unit names, paths, account
-names, queue rows, provider details, and machine identities remain outside the
-public repository.
+names, queue rows, live IDs, provider details, and machine identities remain
+outside the public repository. Public tables use synthetic timestamps and
+invented identifiers.

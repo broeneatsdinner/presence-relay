@@ -1,8 +1,10 @@
 # Inference Model
 
-This document defines future contracts for baselines, correlation, confidence,
-and compound-context inference. These contracts are roadmap-only and are not
-implemented yet.
+This document defines future contracts for route baselines, broader context
+correlation, confidence, and compound-context inference. These contracts are
+roadmap-only and are not implemented yet. The narrow doorway/geofence
+correlation documented in [Operator Interface](operator-interface.md) is a
+separate implemented operational view, not the inference system described here.
 
 ## Baselines
 
@@ -57,7 +59,7 @@ The system should distinguish:
 - recommendation
 - causal conclusion
 
-Future correlation results should structurally avoid causal claims.
+Future context-correlation results should structurally avoid causal claims.
 
 Potential contract:
 

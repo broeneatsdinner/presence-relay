@@ -63,14 +63,20 @@ The live system has been verified after the latest architecture changes:
   environmental hour
 - asynchronous enrichment completed successfully
 - presence state and sequence projections updated correctly
-- Aqara Button A recorded an independent doorway observation without altering
+- the doorway button recorded an independent raw observation without altering
   the geofence sequence
+- focused operator CLI tests and the full private test suite passed
+- private Python compilation, CLI help, and Git whitespace checks passed
+- live arrival-correlation output matched the operational database under the
+  documented bounded-window rule
 - recovery timer behavior is enabled and active
 - pending historical enrichment rows are draining oldest-first
 
-Public documentation may state those outcomes. It must not include exact
-commands, timestamps, hostnames, service names, usernames, paths, queue row
-contents, provider responses, or machine identities.
+Public documentation may state those outcomes. It must not include exact live
+commands, timestamps, IDs, hostnames, service names, usernames, paths, queue or
+event row contents, provider responses, or machine identities. Sanitized
+operator command forms and invented transcripts are documentation fixtures, not
+private verification output.
 
 ## Example File Policy
 

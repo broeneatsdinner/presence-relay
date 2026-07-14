@@ -1,0 +1,41 @@
+flowchart LR
+	subgraph observations["INDEPENDENT RAW OBSERVATIONS"]
+		arrival["home-geofence arrival"]
+		button_in["single doorway-button observation"]
+		button_out["single doorway-button observation"]
+		departure["home-geofence departure"]
+	end
+
+	subgraph operator["READ-ONLY OPERATOR CORRELATION"]
+		arrival_window["arrival window<br/>[this home arrival, next home arrival)"]
+		departure_window["departure window<br/>[this single press, next single press)"]
+	end
+
+	subgraph result["EXPLAINABLE RESULT"]
+		arrival_result["first eligible press<br/>or unmatched"]
+		departure_result["first eligible leave-home event<br/>or unmatched"]
+	end
+
+	arrival --> arrival_window
+	button_in --> arrival_window
+	arrival_window --> arrival_result
+
+	button_out --> departure_window
+	departure --> departure_window
+	departure_window --> departure_result
+
+	note1["windows are computed before limit<br/>matched observations are not reused"]
+	note2["correlation is not causality<br/>raw streams remain distinct"]
+
+	note1 -.-> operator
+	note2 -.-> result
+
+	classDef observed fill:#eef6ff,stroke:#5b7fa6,color:#111827
+	classDef derived fill:#fff7e6,stroke:#a66f00,color:#111827
+	classDef output fill:#ecfdf3,stroke:#2f7d4f,color:#111827
+	classDef note fill:#ffffff,stroke:#999,color:#111827,stroke-dasharray: 3 3
+
+	class arrival,button_in,button_out,departure observed
+	class arrival_window,departure_window derived
+	class arrival_result,departure_result output
+	class note1,note2 note

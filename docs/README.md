@@ -10,6 +10,7 @@ Start here:
 - [Architecture](architecture.md)
 - [Place State](place-state.md)
 - [Doorway Observations](doorway-observations.md)
+- [Operator Interface](operator-interface.md)
 - [Route Sessions](route-sessions.md)
 - [Route Data Model](route-data-model.md)
 - [Chicago Reference Scenario](chicago-reference-scenario.md)
@@ -28,5 +29,6 @@ Current public framing distinguishes:
 - implemented durable public relay delivery and SQLite-first LAN acceptance
 - implemented asynchronous historical environmental enrichment
 - verified operational outcomes described without raw deployment output
-- future route sessions, doorway/geofence correlation, confidence scoring, and
-  recommendations
+- privately implemented, read-only doorway/geofence correlation documented
+  through sanitized operator examples
+- future route sessions, confidence scoring, and recommendations

@@ -214,7 +214,7 @@ Predict. Not react.
 Doorway observations are an independent physical signal, not a route-session
 endpoint by themselves.
 
-They may later help classify or explain route sessions:
+The private operator interface now correlates them with home-geofence events:
 
 ```text
 doorway press
@@ -226,14 +226,15 @@ arrive-home geofence transition
   -> complete route session with physical-boundary support
 ```
 
-That correlation is future work. Initial route-session pairing should continue
-to rely on phone-derived named-place boundary events. A doorway press should not
-silently create a geofence transition, open a route session, close a route
-session, or imply occupancy state.
+That bounded correlation is implemented as a read-only operator view. Integrating
+its result into route-session pairing remains future work. Initial route-session
+pairing should continue to rely on phone-derived named-place boundary events. A
+doorway press does not silently create a geofence transition, open a route
+session, close a route session, or imply occupancy state.
 
-Future correlation rules should use bounded time windows, avoid reusing a single
-doorway observation for multiple transitions, tolerate late or duplicate
-presses, and preserve uncertainty with classifications such as:
+The implemented operator rules use bounded windows, avoid reusing matched
+observations, and preserve unmatched anchors. Richer future route-session
+classification may distinguish cases such as:
 
 ```text
 matched

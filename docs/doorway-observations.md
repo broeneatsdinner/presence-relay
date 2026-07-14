@@ -1,59 +1,63 @@
 # Doorway Observations
 
-Doorway observations are physical boundary signals recorded at the doorway
-boundary. They complement phone-derived geofence transitions without replacing
-them or silently manufacturing movement state.
+Doorway observations are physical boundary signals recorded at the doorway.
+They complement phone-derived geofence transitions without replacing them or
+silently manufacturing movement state.
 
 ![Doorway observation button installed beside the doorway boundary](../assets/photos/doorway-observation-installed.jpg)
 
-The installed Aqara Button A is the live doorway-presence observation trigger.
-It is a quiet physical observation point at the doorway boundary. It makes the
-environment carry a small procedural cue while keeping the observation separate
-from interpretation.
+The installed button, referred to publicly as Button A, is a quiet physical
+observation point. It gives the environment a small procedural cue while keeping
+observation separate from interpretation.
 
-The implemented path is deliberately narrow:
-
-```text
-physical doorway press from Aqara Button A
-  -> home automation
-  -> authenticated invocation
-  -> narrow recorder
-  -> doorway_events row in presence.sqlite
-  -> read-only operator query
-```
-
-The later analytical path is separate and remains future work:
+The implemented write path is deliberately narrow:
 
 ```text
 physical doorway press
-  -> raw doorway observation
-  -> later correlation with phone-derived geofence transitions
-  -> possible journey-level interpretation
+  -> home automation
+  -> authenticated invocation
+  -> narrow recorder
+  -> raw doorway_events row
 ```
+
+The implemented analytical path is later and read-only:
+
+```text
+raw doorway observations + raw geofence transitions
+  -> bounded operator correlation
+  -> matched or visibly unmatched result
+```
+
+The operator implementation is private. This public repository documents its
+verified contract and sanitized presentation without claiming to contain the
+full operational command.
 
 ## Current Status
 
-Implemented and verified:
+Implemented and operationally verified:
 
-- Aqara Button A at the doorway boundary
-- home automation trigger
+- physical doorway observation at the doorway boundary
 - authenticated invocation into trusted local processing
-- narrow recorder
-- raw SQLite persistence in `presence.sqlite`
-- read-only operator visibility
+- narrow raw SQLite persistence
+- read-only visibility for recent doorway observations
+- arrival-side and departure-side bounded correlations
+- non-reuse of matched observations
+- visible unmatched anchors
+- Unicode box tables for human-readable output
+- unchanged machine-readable JSON output
 
-Not implemented yet:
+Not implemented by these correlation commands:
 
-- temporal correlation with phone-derived geofence transitions
-- bounded matching windows
-- confidence and ambiguity classification
-- prevention of one-observation reuse across multiple transitions
+- confidence scoring
 - learned transition windows
+- occupancy conclusions
 - journey-level interpretation
+- causal analysis
 
 The distinction matters. The physical signal records that something happened at
-the doorway. It does not decide whether someone arrived, departed, changed
-occupancy state, or caused a later geofence event.
+the doorway. The geofence stream records what the mobile device reported. The
+operator commands establish whether eligible records align within explicit
+windows; they do not decide why the events happened.
 
 ## Raw Observation Contract
 
@@ -68,7 +72,7 @@ Public-safe field shape:
 | `observed_epoch` | Epoch representation of `observed_at` | observed/normalized | useful for ordering without exposing live values |
 | `ingested_at` | Time the recorder persisted the row | system | public examples use synthetic timestamps |
 | `device` | Stable public-safe device identity | observed/normalized | publish only abstract or example identifiers |
-| `press_type` | Press classification from the button event | observed | examples use non-deployed values |
+| `press_type` | Press classification from the button event | observed | correlation uses `single` only |
 | `source` | Source class for the event | normalized | avoid automation account names or topology |
 | `schema_version` | Raw observation schema version | metadata | supports later schema evolution |
 
@@ -81,8 +85,8 @@ The raw row deliberately does not include:
 - geofence correlation
 - causality
 
-Meaning belongs to a derived layer. Keeping the raw record quiet allows future
-correlation logic to improve without rewriting history.
+Meaning belongs to a derived layer. Keeping the raw record quiet allows the
+correlation logic to evolve without rewriting history.
 
 See the synthetic example in
 [`examples/observations/doorway-press.example.json`](../examples/observations/doorway-press.example.json).
@@ -91,65 +95,77 @@ See the synthetic example in
 
 The two signal streams answer different questions.
 
-A phone-derived geofence observation asks:
-
 ```text
-Which named place boundary did the mobile device report crossing?
+geofence observation:
+  Which named-place boundary did the mobile device report crossing?
+
+doorway observation:
+  Was a single doorway-button press recorded, and when?
 ```
 
-A doorway observation asks only:
+The physical observation is anchored to the doorway boundary. The phone-derived
+event reports a named geofence transition from the mobile device. Neither signal
+is silently promoted into the other.
+
+The two implemented operator views describe opposite sides of the same flow:
 
 ```text
-Was the doorway button pressed, and when?
+arrival:
+  home-geofence arrival
+    -> first subsequent single doorway-button observation
+
+departure:
+  single doorway-button observation
+    -> first subsequent leave-home geofence event
 ```
 
-The physical observation point is valuable because it is anchored to the actual
-doorway boundary. The phone-derived event is valuable because it reports a
-named place-boundary transition from the mobile device. Neither signal should be
-silently promoted into the other.
+Arrival windows start at a home arrival, inclusive, and end at the next home
+arrival, exclusive. Departure windows start at a single button observation,
+inclusive, and end at the next single button observation, exclusive. The first
+eligible counterpart inside each window is selected. Window construction occurs
+before the output limit is applied; matched counterparts are not reused.
 
-Future derived analysis may ask whether patterns line up:
+Results are newest-first, with ID as a deterministic tiebreaker for equal
+timestamps. See [Operator Interface](operator-interface.md) for the complete
+command contract, limits, JSON behavior, and sanitized Unicode tables.
+
+## Why Unmatched Rows Remain Visible
+
+The system is designed for real use, not ritual-perfect input. A forgotten press
+is missing evidence, not a license to invent evidence. A late or duplicate press
+may fall outside the applicable window. A geofence event may likewise have no
+eligible doorway counterpart.
+
+Keeping unmatched anchors in the output gives the operator three useful
+properties:
+
+- gaps and timing mismatches remain inspectable
+- one convenient event cannot be reused to complete several stories
+- correlation quality is visible without a hidden confidence claim
+
+Human-readable output renders unmatched fields with an em dash (`—`). JSON uses
+`null`. Neither representation implies a negative movement claim; it means only
+that the bounded rule found no eligible counterpart.
+
+## Correlation Is Not Causality
+
+A matched pair establishes temporal correlation under a documented selection
+rule. It is not proof that the same person produced both observations, that the
+button press caused a geofence transition, or that either record proves
+occupancy.
+
+The evidence ladder remains explicit:
 
 ```text
-doorway press
-  -> leave-home geofence transition
-
-arrive-home geofence transition
-  -> doorway press
+observed doorway event
+  -> geofence transition
+    -> bounded correlation
+      -> possible inferred meaning
 ```
 
-That correlation is not implemented in the public model or represented as
-deployed behavior here.
-
-## Human Behavior
-
-The system is designed for real use, not ritual-perfect input.
-
-A forgotten press is not a system failure. It is missing evidence. A late press
-or duplicate press is not proof of a clean story. It is a physical observation
-that a later layer may or may not be able to use.
-
-Future correlation should:
-
-- use bounded temporal windows
-- search for the nearest plausible doorway observation
-- avoid reusing one doorway observation across multiple transitions
-- tolerate late presses and duplicate presses
-- preserve ambiguity rather than force a clean narrative
-- classify results honestly
-
-Possible future classifications:
-
-```text
-matched
-no_plausible_press
-ambiguous
-outside_expected_window
-```
-
-This keeps the operator's burden small. The environment carries a modest
-procedural cue at the doorway, while the operator is not required to open an app,
-run a command, or maintain perfect input discipline.
+The first two are independent observations. The third is the implemented
+read-only association. The fourth remains interpretation and is not asserted by
+these commands.
 
 ## Security And Publication Boundary
 
@@ -161,20 +177,19 @@ protected processing node.
 Public documentation may describe:
 
 - physical doorway observation
-- home automation
-- authenticated invocation
-- protected home-LAN processing node
+- authenticated local invocation
+- protected home-LAN processing
 - narrow recorder
-- local SQLite event store
-- read-only operator query
-- raw observation and derived correlation
+- local SQLite event storage
+- read-only operator queries
+- bounded correlation rules and sanitized output
 
 Public documentation must not publish:
 
 - operational credentials or automation account details
-- device identifiers from the deployed environment
+- deployed device identifiers or provider details
 - private hostnames, IP addresses, usernames, paths, or database locations
-- exact event timestamps, live rows, logs, or database counts
+- exact live timestamps, event IDs, rows, logs, or database counts
 - residence identifiers, building details, or access-control details
 - unreviewed installation photographs
 

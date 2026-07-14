@@ -16,6 +16,10 @@ plain text, rendered by GitHub, and revised without binary design assets.
   public synthetic fixtures, real local webhook authentication, a demo-only
   delivery adapter, real trusted-side processing, disposable SQLite state, and
   existing viewer-reader verification.
+- `doorway-correlation.mmd` shows the two complementary read-only operator
+  views: home arrival to doorway confirmation, and doorway observation to
+  leave-home departure. It keeps raw streams, bounded correlation, and inferred
+  meaning visibly separate.
 
 ## Implemented Versus Demo Boundary
 
@@ -25,9 +29,11 @@ demo diagram is separate because it intentionally replaces the production
 private delivery hop with a clearly marked local adapter. The demo does not
 simulate or claim the production SSH/private-delivery transport.
 
-Roadmap work such as route sessions, historical baselines, context correlation,
-inference, confidence scoring, and recommendations is intentionally absent from
-these diagrams unless explicitly identified as out of scope in prose.
+The doorway-correlation diagram documents privately implemented operator
+behavior using public-safe abstractions; it is not part of the deterministic
+local demo. Roadmap work such as route sessions, historical baselines, broader
+context correlation, inference, confidence scoring, and recommendations is
+intentionally absent unless explicitly identified as out of scope in prose.
 
 ## Rendered Assets
 

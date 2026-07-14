@@ -68,6 +68,11 @@ arrive  kilmer-elementary  unnamed          kilmer-elementary
 It also verifies that the existing viewer server reader can fetch the resulting
 SQLite rows.
 
+Sanitized examples of the separate private operator interface are available in
+[`demo/transcripts/`](transcripts/README.md). Those Unicode tables are
+presentation fixtures; this deterministic demo does not generate them or contain
+the private `bin/presence` implementation.
+
 ## Boundary
 
 This demo does model:
@@ -88,6 +93,10 @@ This demo does not run or simulate roadmap functionality:
 - inference
 - confidence scoring
 - recommendations
+
+It also does not run the privately implemented doorway/geofence correlation
+commands. Their public transcripts document the verified interface without
+claiming that private runtime logic or data is included here.
 
 It also does not run the production asynchronous enrichment trigger. The public
 implementation contains the sanitized one-event enrichment worker; the demo

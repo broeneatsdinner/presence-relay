@@ -37,6 +37,7 @@ flowchart LR
 		db[("presence.sqlite<br/>raw event record")]
 		projections["derived projections<br/>.presence-* files"]
 		enrich["asynchronous enrichment<br/>one oldest unfinished event"]
+		operator["read-only operator views<br/>Unicode tables / JSON"]
 		viewer["local viewer"]
 	end
 
@@ -51,6 +52,7 @@ flowchart LR
 	db --> projections
 	db --> enrich
 	enrich --> db
+	operator -->|"reads independent streams"| db
 	viewer -->|"reads local state"| db
 
 	lan_note["trusted LAN target is not directly exposed publicly"]
@@ -71,7 +73,7 @@ flowchart LR
 	class shortcut,payload edge
 	class webhook,auth,validate public
 	class delivery boundary
-	class accept,projections,enrich,viewer trusted
+	class accept,projections,enrich,operator,viewer trusted
 	class queue,db storage
 	class lan_note,queue_note,db_note note
 ```
@@ -122,6 +124,62 @@ stateDiagram-v2
 
 Accuracy note: legacy `previous_status` and `new_status` fields still exist for
 compatibility, but they are not the canonical place-state model.
+
+## Doorway Correlation
+
+Raw doorway observations and phone-derived geofence transitions remain
+independent records. Private read-only operator tooling builds two complementary
+bounded views without rewriting either stream. Half-open windows prevent overlap;
+unmatched anchors remain explicit rather than being forced into a conclusion.
+
+```mermaid
+flowchart LR
+	subgraph observations["INDEPENDENT RAW OBSERVATIONS"]
+		arrival["home-geofence arrival"]
+		button_in["single doorway-button observation"]
+		button_out["single doorway-button observation"]
+		departure["home-geofence departure"]
+	end
+
+	subgraph operator["READ-ONLY OPERATOR CORRELATION"]
+		arrival_window["arrival window<br/>[this home arrival, next home arrival)"]
+		departure_window["departure window<br/>[this single press, next single press)"]
+	end
+
+	subgraph result["EXPLAINABLE RESULT"]
+		arrival_result["first eligible press<br/>or unmatched"]
+		departure_result["first eligible leave-home event<br/>or unmatched"]
+	end
+
+	arrival --> arrival_window
+	button_in --> arrival_window
+	arrival_window --> arrival_result
+
+	button_out --> departure_window
+	departure --> departure_window
+	departure_window --> departure_result
+
+	note1["windows are computed before limit<br/>matched observations are not reused"]
+	note2["correlation is not causality<br/>raw streams remain distinct"]
+
+	note1 -.-> operator
+	note2 -.-> result
+
+	classDef observed fill:#eef6ff,stroke:#5b7fa6,color:#111827
+	classDef derived fill:#fff7e6,stroke:#a66f00,color:#111827
+	classDef output fill:#ecfdf3,stroke:#2f7d4f,color:#111827
+	classDef note fill:#ffffff,stroke:#999,color:#111827,stroke-dasharray: 3 3
+
+	class arrival,button_in,button_out,departure observed
+	class arrival_window,departure_window derived
+	class arrival_result,departure_result output
+	class note1,note2 note
+```
+
+Accuracy note: this diagram documents privately implemented behavior with
+public-safe abstractions. It does not imply that the private `bin/presence`
+implementation or operational database is included in this repository. A match
+means only that the stated temporal rule selected an eligible counterpart.
 
 ## Local Demo Flow
 

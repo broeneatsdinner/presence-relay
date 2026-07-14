@@ -33,6 +33,11 @@ That doorway observation is deliberately raw. It complements the phone-derived
 geofence stream, but it does not infer arrival, departure, occupancy,
 confidence, or causality.
 
+Private read-only operator tooling now correlates the raw doorway and geofence
+streams through deterministic, bounded event windows. It preserves unmatched
+observations and reports temporal association rather than treating the match as
+proof of movement or causality.
+
 The documented roadmap asks a broader question:
 
 > Given historical movement patterns, environmental conditions, scheduled events, and incomplete signals, what should the operator anticipate before leaving?
@@ -87,11 +92,13 @@ flowchart TB
 		db[("SQLite<br/>Raw event record")]
 		projections["Derived projections<br/>Log / state / sequence"]
 		enrichment["Asynchronous enrichment"]
+		operator["Read-only operator views<br/>Unicode tables / JSON"]
 		viewer["Local viewer"]
 
 		db --> projections
 		db -->|"oldest unfinished event"| enrichment
 		enrichment --> db
+		operator -->|"reads independent event streams"| db
 		viewer -->|"reads"| db
 	end
 
@@ -149,7 +156,10 @@ The current system includes:
 - historical-time daylight and weather modeling
 - SQLite persistence as the accepted-event system of record
 - a local event viewer
-- read-only operator visibility for recent doorway observations
+- read-only operator visibility for doorway observations and bounded
+  doorway/geofence correlation
+- Unicode box tables for human-readable CLI output with unchanged
+  machine-readable JSON compatibility
 - backward-compatible legacy fields
 - sanitized deployment templates and examples
 - public-release audit and sanitization tooling
@@ -301,9 +311,10 @@ synthetic named-place payloads
 ```
 
 The demo uses public Chicago fixtures, a clearly labeled non-secret demo token,
-and no live infrastructure. It does not run roadmap features such as route
-sessions, baselines, context correlation, inference, confidence scoring, or
-recommendations.
+and no live infrastructure. It does not run the private doorway-correlation
+commands or roadmap features such as route sessions, baselines, context
+correlation, inference, confidence scoring, or recommendations. Sanitized
+operator transcripts are presentation fixtures, not generated demo output.
 
 The [local-demo flow diagram](docs/architecture-diagrams.md#local-demo-flow)
 marks the demo-only adapter separately from the production private delivery
@@ -332,6 +343,8 @@ public fixture data.
 | Named-place event model | Implemented |
 | Place-state transitions | Implemented |
 | Physical doorway observations | Implemented |
+| Read-only doorway/geofence temporal correlation | Implemented and privately verified |
+| Unicode operator tables and JSON compatibility | Implemented and privately verified |
 | SQLite-first LAN raw event acceptance | Implemented and live-verified |
 | Duplicate-safe derived projections | Implemented |
 | Asynchronous enrichment trigger and recovery timer | Implemented and live-verified |
@@ -341,7 +354,6 @@ public fixture data.
 | SQLite accepted-event storage | Implemented and live-verified |
 | Local viewer | Implemented |
 | Route-session lifecycle | Designed |
-| Doorway/geofence temporal correlation | Designed |
 | Route sampling | Designed |
 | Historical route baselines | Designed |
 | Broader context observations and events | Designed |
@@ -352,7 +364,7 @@ public fixture data.
 | Explainable recommendations | Roadmap |
 | Custom iOS route collector | Roadmap |
 
-Designed means a documented model or interface exists but is not yet operational. Roadmap means the direction is intended but not yet fully designed or implemented.
+Designed means a documented model or interface exists but is not yet operational. Roadmap means the direction is intended but not yet fully designed or implemented. Privately verified means the operational behavior was exercised outside this sanitized public repository; it does not imply that the private operator implementation is published here.
 
 The repository keeps implemented behavior, verified operation, design work, and future roadmap visibly separate.
 
@@ -411,16 +423,27 @@ Presence Relay now combines phone-derived geofence observations with a quiet
 physical observation point at the doorway boundary.
 
 ```text
-physical doorway press from Aqara Button A
+physical doorway press
   -> home automation
   -> authenticated invocation
   -> narrow recorder
   -> doorway_events row in presence.sqlite
-  -> later correlation with geofence transitions
+  -> later read-only correlation with geofence transitions
 ```
 
-The last step is future work. The implemented portion records the press as a raw
-fact and exposes recent rows through a read-only operator query.
+Raw recording and derived interpretation remain separate. The recorder stores
+the press as a raw fact. Private read-only operator commands later build bounded
+correlations without rewriting that row or manufacturing a movement event:
+
+```text
+arrival:
+  home-geofence arrival
+    -> first subsequent single doorway-button observation
+
+departure:
+  single doorway-button observation
+    -> first subsequent home-geofence departure
+```
 
 The engineering value is not the button by itself. The important boundary is
 between observation and interpretation:
@@ -433,12 +456,19 @@ derived question:
   does that press plausibly support a leave-home or arrive-home transition?
 ```
 
-A missed press is not a failed system. It is missing evidence. A late or
-duplicate press is not forced into a clean narrative. Future correlation should
-use bounded windows, avoid reusing one doorway observation across multiple
-transitions, and classify uncertain cases honestly.
+A missed press is not a failed system. It is missing evidence. The implemented
+operator views compute non-overlapping windows before applying the output limit,
+do not reuse matched observations, and retain unmatched anchors. That restraint
+makes gaps visible instead of forcing a late, duplicate, or absent observation
+into a clean narrative. A match reports correlation under the stated rule, not
+proof of physical movement or causality.
 
-See [Doorway Observations](docs/doorway-observations.md).
+Human-readable output uses Unicode box tables, readable elapsed intervals, and
+an em dash for unmatched fields. The established JSON mode remains
+machine-readable and uses `null` for unmatched values.
+
+See [Doorway Observations](docs/doorway-observations.md) and the
+[Operator Interface](docs/operator-interface.md).
 
 ---
 
@@ -514,6 +544,8 @@ Presence Relay demonstrates:
 - SQLite-first raw acceptance and projection discipline
 - asynchronous enrichment with recovery behavior and failure isolation
 - independent phone-derived and physical-boundary observation streams
+- read-only operational tooling with bounded, deterministic event correlation
+- explainable unmatched results and restraint in causal interpretation
 - Linux service operation, shell tooling, and private-network integration
 - explicit event and state modeling
 - schema evolution and backward compatibility
@@ -560,6 +592,8 @@ See [Threat Model](docs/threat-model.md) and [Sanitization](docs/sanitization.md
 
 - [Architecture](docs/architecture.md)
 - [Place State](docs/place-state.md)
+- [Doorway Observations](docs/doorway-observations.md)
+- [Operator Interface](docs/operator-interface.md)
 - [Route Sessions](docs/route-sessions.md)
 - [Route Data Model](docs/route-data-model.md)
 - [Chicago Reference Scenario](docs/chicago-reference-scenario.md)
